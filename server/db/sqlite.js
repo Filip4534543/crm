@@ -1,14 +1,16 @@
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const { STAGES, STAGE_LABELS } = require('../constants');
 
-const dataDir = path.join(__dirname, '..', '..', 'data');
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+let db;
 
-const db = new Database(path.join(dataDir, 'crm.db'));
-
-db.exec(`
+function getDb() {
+  if (db) return db;
+  const Database = require('better-sqlite3');
+  const dataDir = path.join(__dirname, '..', '..', 'data');
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  db = new Database(path.join(dataDir, 'crm.db'));
+  db.exec(`
   CREATE TABLE IF NOT EXISTS leads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     company_name TEXT,
@@ -51,10 +53,12 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_history_lead ON stage_history(lead_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_stack ON tasks(done, stack_position);
 `);
+  return db;
+}
 
 function mapLeadRow(row) {
   if (!row) return null;
-  const history = db
+  const history = getDb()
     .prepare(
       `SELECT id, from_stage, to_stage, description, created_at
        FROM stage_history WHERE lead_id = ? ORDER BY created_at DESC`
@@ -71,19 +75,19 @@ function mapLeadRow(row) {
 }
 
 function getAllLeads() {
-  return db
+  return getDb()
     .prepare('SELECT * FROM leads ORDER BY updated_at DESC')
     .all()
     .map(mapLeadRow);
 }
 
 function getLeadById(id) {
-  return mapLeadRow(db.prepare('SELECT * FROM leads WHERE id = ?').get(id));
+  return mapLeadRow(getDb().prepare('SELECT * FROM leads WHERE id = ?').get(id));
 }
 
 function getStageCounts() {
   const counts = Object.fromEntries(STAGES.map((s) => [s, 0]));
-  const rows = db
+  const rows = getDb()
     .prepare('SELECT stage, COUNT(*) as count FROM leads GROUP BY stage')
     .all();
   for (const { stage, count } of rows) {
@@ -97,7 +101,7 @@ function getStageCounts() {
 }
 
 function insertLead(data) {
-  const result = db
+  const result = getDb()
     .prepare(
       `INSERT INTO leads (
       company_name, maps_url, phone, address, website,
@@ -121,15 +125,17 @@ function insertLead(data) {
       prospect_name: data.prospect_name ?? data.Prospect_Name ?? null,
     });
   const leadId = result.lastInsertRowid;
-  db.prepare(
-    `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
+  getDb()
+    .prepare(
+      `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
      VALUES (?, NULL, 'not_contacted_yet', 'Nowy lead z n8n')`
-  ).run(leadId);
+    )
+    .run(leadId);
   return getLeadById(leadId);
 }
 
 function updateLeadStage(id, toStage, description, agreedSum) {
-  const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(id);
+  const lead = getDb().prepare('SELECT * FROM leads WHERE id = ?').get(id);
   if (!lead) return null;
   if (!STAGES.includes(toStage)) throw new Error('Invalid stage');
 
@@ -141,7 +147,8 @@ function updateLeadStage(id, toStage, description, agreedSum) {
     updates.earnings = lead.agreed_sum;
   }
 
-  db.prepare(
+  getDb()
+    .prepare(
     `UPDATE leads SET stage = @stage,
      agreed_sum = COALESCE(@agreed_sum, agreed_sum),
      earnings = COALESCE(@earnings, earnings),
@@ -154,10 +161,12 @@ function updateLeadStage(id, toStage, description, agreedSum) {
     earnings: updates.earnings ?? null,
   });
 
-  db.prepare(
-    `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
+  getDb()
+    .prepare(
+      `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
      VALUES (?, ?, ?, ?)`
-  ).run(id, lead.stage, toStage, description || null);
+    )
+    .run(id, lead.stage, toStage, description || null);
 
   return getLeadById(id);
 }
@@ -180,18 +189,18 @@ function updateLeadFields(id, fields) {
   }
   if (sets.length === 0) return getLeadById(id);
   sets.push("updated_at = datetime('now')");
-  db.prepare(`UPDATE leads SET ${sets.join(', ')} WHERE id = @id`).run(params);
+  getDb().prepare(`UPDATE leads SET ${sets.join(', ')} WHERE id = @id`).run(params);
   return getLeadById(id);
 }
 
 function getAllTasks() {
-  const active = db
+  const active = getDb()
     .prepare(
       `SELECT * FROM tasks WHERE done = 0 ORDER BY stack_position DESC, id DESC`
     )
     .all()
     .map((t) => ({ ...t, done: Boolean(t.done) }));
-  const done = db
+  const done = getDb()
     .prepare(`SELECT * FROM tasks WHERE done = 1 ORDER BY updated_at DESC`)
     .all()
     .map((t) => ({ ...t, done: Boolean(t.done) }));
@@ -199,7 +208,7 @@ function getAllTasks() {
 }
 
 function nextStackPosition() {
-  const row = db
+  const row = getDb()
     .prepare('SELECT MAX(stack_position) as max FROM tasks WHERE done = 0')
     .get();
   return (row?.max ?? 0) + 1;
@@ -208,7 +217,7 @@ function nextStackPosition() {
 function insertTask({ title, notes }) {
   if (!title?.trim()) throw new Error('Title required');
   const pos = nextStackPosition();
-  const result = db
+  const result = getDb()
     .prepare(
       `INSERT INTO tasks (title, notes, stack_position) VALUES (?, ?, ?)`
     )
@@ -217,7 +226,7 @@ function insertTask({ title, notes }) {
 }
 
 function getTaskById(id) {
-  const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  const row = getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id);
   if (!row) return null;
   return { ...row, done: Boolean(row.done) };
 }
@@ -229,9 +238,11 @@ function updateTask(id, fields) {
     const done = fields.done ? 1 : 0;
     let stackPosition = task.stack_position;
     if (done === 0) stackPosition = nextStackPosition();
-    db.prepare(
-      `UPDATE tasks SET done = ?, stack_position = ?, updated_at = datetime('now') WHERE id = ?`
-    ).run(done, stackPosition, id);
+    getDb()
+      .prepare(
+        `UPDATE tasks SET done = ?, stack_position = ?, updated_at = datetime('now') WHERE id = ?`
+      )
+      .run(done, stackPosition, id);
     return getTaskById(id);
   }
   const sets = [];
@@ -246,12 +257,12 @@ function updateTask(id, fields) {
   }
   if (sets.length === 0) return task;
   sets.push("updated_at = datetime('now')");
-  db.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = @id`).run(params);
+  getDb().prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = @id`).run(params);
   return getTaskById(id);
 }
 
 function deleteTask(id) {
-  return db.prepare('DELETE FROM tasks WHERE id = ?').run(id).changes > 0;
+  return getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id).changes > 0;
 }
 
 const wrap =

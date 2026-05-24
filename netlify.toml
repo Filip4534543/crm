@@ -7,6 +7,12 @@
   NODE_VERSION = "20"
   NETLIFY = "true"
 
+[context.production.environment]
+  NETLIFY = "true"
+
+[context.deploy-preview.environment]
+  NETLIFY = "true"
+
 [functions]
   node_bundler = "esbuild"
   included_files = ["server/**"]
