@@ -35,8 +35,7 @@ async function request(path, options = {}) {
     } catch {
       if (text.includes('Cannot POST') || text.includes('Cannot GET')) {
         data = {
-          error:
-            'Serwer nie ma API zadań — zatrzymaj stary proces i uruchom ponownie: npm run dev',
+          error: 'API niedostępne (404) — wdróż ponownie projekt na Netlify',
         };
       }
     }

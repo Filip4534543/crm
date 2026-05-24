@@ -28,12 +28,21 @@ export function getDefaultEndpoints() {
 }
 
 export function getEndpoints() {
+  const defaults = getDefaultEndpoints();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return getDefaultEndpoints();
-    return { ...getDefaultEndpoints(), ...JSON.parse(raw) };
+    if (!raw) return defaults;
+    const saved = JSON.parse(raw);
+    if (isNetlifyHost()) {
+      return {
+        ...saved,
+        ...defaults,
+        webhookSecret: saved.webhookSecret ?? defaults.webhookSecret,
+      };
+    }
+    return { ...defaults, ...saved };
   } catch {
-    return getDefaultEndpoints();
+    return defaults;
   }
 }
 

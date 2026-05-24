@@ -14,8 +14,15 @@ export default function Login({ onSuccess }) {
       const { token } = await api.login(password);
       setToken(token);
       onSuccess();
-    } catch {
-      setError('Nieprawidłowe hasło');
+    } catch (err) {
+      const msg = err?.message || '';
+      if (msg.includes('Cannot POST') || msg.includes('404')) {
+        setError('API niedostępne — poczekaj na deploy Netlify lub sprawdź zakładkę API.');
+      } else if (msg === 'Unauthorized' || msg.includes('401')) {
+        setError('Nieprawidłowe hasło');
+      } else {
+        setError(msg || 'Nieprawidłowe hasło');
+      }
     } finally {
       setLoading(false);
     }

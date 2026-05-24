@@ -15,12 +15,16 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-/* Netlify przekierowuje /api/* → funkcja ze ścieżką bez prefiksu /api */
+/* Netlify: ścieżka bywa auth/login lub api/auth/login — normalizuj do /api/... */
 if (process.env.NETLIFY) {
   app.use((req, res, next) => {
-    if (!req.path.startsWith('/api')) {
-      req.url = `/api${req.url}`;
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    let path = req.url.split('?')[0];
+    if (!path.startsWith('/')) path = `/${path}`;
+    if (!path.startsWith('/api/') && path !== '/api') {
+      path = `/api${path}`;
     }
+    req.url = path + query;
     next();
   });
 }
