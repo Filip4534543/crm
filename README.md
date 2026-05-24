@@ -13,7 +13,7 @@ npm run dev
 - **Frontend (dev):** http://localhost:5173  
 - **API / webhook:** http://localhost:3847  
 
-Hasło domyślne: `Neo2552@` (zmień w `.env` → `LOGIN_PASSWORD`).
+Hasło domyślne: `Neo2552` (zmień w `.env` → `LOGIN_PASSWORD`).
 
 ## Produkcja — Netlify
 

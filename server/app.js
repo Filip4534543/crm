@@ -6,7 +6,7 @@ const db = require('./db');
 
 const JWT_SECRET =
   process.env.JWT_SECRET || 'filips-crm-local-secret-change-me';
-const LOGIN_PASSWORD = process.env.LOGIN_PASSWORD || 'Neo2552@';
+const LOGIN_PASSWORD = process.env.LOGIN_PASSWORD || 'Neo2552';
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 const PUBLIC_URL =
   process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://filipscrm.netlify.app';
