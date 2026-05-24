@@ -12,7 +12,14 @@ import LeadCard from './LeadCard';
 import StageMoveModal from './StageMoveModal';
 import StageShortcuts from './StageShortcuts';
 
-function StageColumn({ stage, leads, setColumnRef, children }) {
+function StageColumn({
+  stage,
+  leads,
+  setColumnRef,
+  children,
+  bulkActions,
+  bulkBusy,
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
   const setRef = useCallback(
@@ -33,6 +40,26 @@ function StageColumn({ stage, leads, setColumnRef, children }) {
       <div className="stage-header">
         <h3>{stage.label}</h3>
         <div className="badge">{leads.length} leadów</div>
+        {bulkActions && leads.length > 0 && (
+          <div className="stage-bulk-actions">
+            <button
+              type="button"
+              className="btn-stage-mini"
+              disabled={bulkBusy}
+              onClick={bulkActions.onDedupe}
+            >
+              Usuń duplikaty
+            </button>
+            <button
+              type="button"
+              className="btn-stage-mini btn-stage-mini--danger"
+              disabled={bulkBusy}
+              onClick={bulkActions.onDeleteAll}
+            >
+              Usuń wszystkie
+            </button>
+          </div>
+        )}
       </div>
       <div className={`stage-cards${isOver ? ' drag-over' : ''}`}>{children}</div>
     </div>
@@ -47,13 +74,20 @@ function resolveDropStage(overId) {
   return null;
 }
 
-export default function Pipeline({ leads, onMoveStage, onLeadClick }) {
+export default function Pipeline({
+  leads,
+  onMoveStage,
+  onLeadClick,
+  onDeleteAllNotContacted,
+  onRemoveDuplicatesNotContacted,
+}) {
   const [activeLead, setActiveLead] = useState(null);
   const [pendingMove, setPendingMove] = useState(null);
   const [didDrag, setDidDrag] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
   const [focusedStageId, setFocusedStageId] = useState(null);
   const [dragOverStageId, setDragOverStageId] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const columnRefs = useRef({});
 
   const sensors = useSensors(
@@ -136,6 +170,50 @@ export default function Pipeline({ leads, onMoveStage, onLeadClick }) {
     onLeadClick?.(lead);
   }
 
+  const notContactedCount = counts.not_contacted_yet ?? 0;
+
+  async function handleDeleteAllNotContacted() {
+    if (notContactedCount === 0) return;
+    if (
+      !window.confirm(
+        `Usunąć wszystkie ${notContactedCount} leadów ze stage „Not contacted yet”? Tej operacji nie można cofnąć.`
+      )
+    ) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      await onDeleteAllNotContacted?.();
+      if (selectedLead?.stage === 'not_contacted_yet') setSelectedLead(null);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleRemoveDuplicates() {
+    if (notContactedCount === 0) return;
+    if (
+      !window.confirm(
+        'Usunąć duplikaty w „Not contacted yet”? Zostanie najstarszy lead z każdej grupy (ten sam telefon, nazwa lub link Maps).'
+      )
+    ) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const result = await onRemoveDuplicatesNotContacted?.();
+      if (result?.deleted === 0) {
+        window.alert('Nie znaleziono duplikatów do usunięcia.');
+      }
+      if (selectedLead?.stage === 'not_contacted_yet') {
+        const still = leads.find((l) => l.id === selectedLead.id);
+        if (!still) setSelectedLead(null);
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   async function confirmMove({ description, agreed_sum, task }) {
     if (!pendingMove) return;
     const { lead, toStage } = pendingMove;
@@ -170,6 +248,15 @@ export default function Pipeline({ leads, onMoveStage, onLeadClick }) {
                   key={stage.id}
                   stage={stage}
                   leads={byStage[stage.id]}
+                  bulkBusy={bulkBusy}
+                  bulkActions={
+                    stage.id === 'not_contacted_yet'
+                      ? {
+                          onDeleteAll: handleDeleteAllNotContacted,
+                          onDedupe: handleRemoveDuplicates,
+                        }
+                      : null
+                  }
                   setColumnRef={(el) => {
                     columnRefs.current[stage.id] = el;
                   }}

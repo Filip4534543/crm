@@ -187,6 +187,16 @@ export default function App() {
               leads={leads}
               onMoveStage={handleMoveStage}
               onLeadClick={(lead) => setSelectedLead(lead)}
+              onDeleteAllNotContacted={async () => {
+                await api.deleteAllNotContacted();
+                setSelectedLead(null);
+                await refresh();
+              }}
+              onRemoveDuplicatesNotContacted={async () => {
+                const result = await api.removeDuplicatesNotContacted();
+                await refresh();
+                return result;
+              }}
             />
           </div>
         )}

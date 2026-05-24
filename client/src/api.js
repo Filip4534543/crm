@@ -67,6 +67,10 @@ export const api = {
       body: JSON.stringify(body),
     }),
   deleteLead: (id) => request(`/api/leads/${id}`, { method: 'DELETE' }),
+  deleteAllNotContacted: () =>
+    request('/api/leads/stage/not_contacted_yet', { method: 'DELETE' }),
+  removeDuplicatesNotContacted: () =>
+    request('/api/leads/stage/not_contacted_yet/dedupe', { method: 'POST' }),
   getTasks: () => request('/api/tasks'),
   createTask: (body) =>
     request('/api/tasks', { method: 'POST', body: JSON.stringify(body) }),

@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { STAGES, STAGE_LABELS } = require('../constants');
 const { sortActiveTasks } = require('./sortTasks');
+const { BULK_STAGE, duplicateIdsToRemove, assertBulkStage } = require('./leadUtils');
 
 let db;
 
@@ -295,6 +296,30 @@ function deleteLead(id) {
   return d.prepare('DELETE FROM leads WHERE id = ?').run(id).changes > 0;
 }
 
+function deleteAllLeadsInStage(stage) {
+  assertBulkStage(stage);
+  const ids = getDb()
+    .prepare('SELECT id FROM leads WHERE stage = ?')
+    .all(stage)
+    .map((r) => r.id);
+  let deleted = 0;
+  for (const id of ids) {
+    if (deleteLead(id)) deleted++;
+  }
+  return { deleted, stage };
+}
+
+function deleteDuplicateLeadsInStage(stage) {
+  assertBulkStage(stage);
+  const leads = getDb().prepare('SELECT * FROM leads WHERE stage = ?').all(stage);
+  const ids = duplicateIdsToRemove(leads);
+  let deleted = 0;
+  for (const id of ids) {
+    if (deleteLead(id)) deleted++;
+  }
+  return { deleted, stage, groupsAffected: ids.length };
+}
+
 const wrap =
   (fn) =>
   (...args) =>
@@ -312,4 +337,6 @@ module.exports = {
   updateTask: wrap(updateTask),
   deleteTask: wrap(deleteTask),
   deleteLead: wrap(deleteLead),
+  deleteAllLeadsInStage: wrap(deleteAllLeadsInStage),
+  deleteDuplicateLeadsInStage: wrap(deleteDuplicateLeadsInStage),
 };

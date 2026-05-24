@@ -162,6 +162,30 @@ app.delete('/api/leads/:id', authMiddleware, async (req, res) => {
   res.json({ ok: true });
 });
 
+app.delete(
+  '/api/leads/stage/not_contacted_yet',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      res.json(await db.deleteAllLeadsInStage('not_contacted_yet'));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+app.post(
+  '/api/leads/stage/not_contacted_yet/dedupe',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      res.json(await db.deleteDuplicateLeadsInStage('not_contacted_yet'));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 app.get('/api/stats', authMiddleware, async (req, res) => {
   res.json(await db.getStageCounts());
 });

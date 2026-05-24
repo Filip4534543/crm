@@ -1,6 +1,7 @@
 const { getStore } = require('@netlify/blobs');
 const { STAGES, STAGE_LABELS } = require('../constants');
 const { sortActiveTasks } = require('./sortTasks');
+const { duplicateIdsToRemove, assertBulkStage } = require('./leadUtils');
 
 const DATA_KEY = 'crm-main';
 
@@ -267,6 +268,29 @@ async function deleteLead(id) {
   return true;
 }
 
+async function deleteAllLeadsInStage(stage) {
+  assertBulkStage(stage);
+  const data = await loadData();
+  const ids = data.leads.filter((l) => l.stage === stage).map((l) => l.id);
+  let deleted = 0;
+  for (const id of ids) {
+    if (await deleteLead(id)) deleted++;
+  }
+  return { deleted, stage };
+}
+
+async function deleteDuplicateLeadsInStage(stage) {
+  assertBulkStage(stage);
+  const data = await loadData();
+  const leads = data.leads.filter((l) => l.stage === stage);
+  const ids = duplicateIdsToRemove(leads);
+  let deleted = 0;
+  for (const id of ids) {
+    if (await deleteLead(id)) deleted++;
+  }
+  return { deleted, stage, groupsAffected: ids.length };
+}
+
 module.exports = {
   getAllLeads,
   getLeadById,
@@ -279,4 +303,6 @@ module.exports = {
   updateTask,
   deleteTask,
   deleteLead,
+  deleteAllLeadsInStage,
+  deleteDuplicateLeadsInStage,
 };
