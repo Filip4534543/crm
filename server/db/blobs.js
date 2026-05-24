@@ -1,5 +1,6 @@
 const { getStore } = require('@netlify/blobs');
 const { STAGES, STAGE_LABELS } = require('../constants');
+const { sortActiveTasks } = require('./sortTasks');
 
 const DATA_KEY = 'crm-main';
 
@@ -182,13 +183,9 @@ async function updateLeadFields(id, fields) {
 
 async function getAllTasks() {
   const data = await loadData();
-  const active = data.tasks
-    .filter((t) => !t.done)
-    .sort(
-      (a, b) =>
-        b.stack_position - a.stack_position || b.id - a.id
-    )
-    .map((t) => ({ ...t, done: false }));
+  const active = sortActiveTasks(
+    data.tasks.filter((t) => !t.done).map((t) => ({ ...t, done: false }))
+  );
   const done = data.tasks
     .filter((t) => t.done)
     .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
@@ -202,7 +199,7 @@ function nextStackPosition(data) {
   return Math.max(...active.map((t) => t.stack_position)) + 1;
 }
 
-async function insertTask({ title, notes }) {
+async function insertTask({ title, notes, due_date, lead_id }) {
   if (!title?.trim()) throw new Error('Title required');
   const data = await loadData();
   const ts = now();
@@ -210,6 +207,8 @@ async function insertTask({ title, notes }) {
     id: data.nextTaskId++,
     title: title.trim(),
     notes: notes?.trim() || null,
+    due_date: due_date?.trim() || null,
+    lead_id: lead_id != null ? Number(lead_id) : null,
     stack_position: nextStackPosition(data),
     done: 0,
     created_at: ts,
@@ -242,6 +241,7 @@ async function updateTask(id, fields) {
 
   if (fields.title !== undefined) task.title = fields.title.trim();
   if (fields.notes !== undefined) task.notes = fields.notes?.trim() || null;
+  if (fields.due_date !== undefined) task.due_date = fields.due_date?.trim() || null;
   task.updated_at = now();
   await saveData(data);
   return getTaskById(id);
@@ -252,6 +252,17 @@ async function deleteTask(id) {
   const before = data.tasks.length;
   data.tasks = data.tasks.filter((t) => t.id !== id);
   if (data.tasks.length === before) return false;
+  await saveData(data);
+  return true;
+}
+
+async function deleteLead(id) {
+  const data = await loadData();
+  const lead = data.leads.find((l) => l.id === id);
+  if (!lead) return false;
+  data.leads = data.leads.filter((l) => l.id !== id);
+  data.history = data.history.filter((h) => h.lead_id !== id);
+  data.tasks = data.tasks.filter((t) => t.lead_id !== id);
   await saveData(data);
   return true;
 }
@@ -267,4 +278,5 @@ module.exports = {
   insertTask,
   updateTask,
   deleteTask,
+  deleteLead,
 };

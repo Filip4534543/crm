@@ -66,6 +66,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  deleteLead: (id) => request(`/api/leads/${id}`, { method: 'DELETE' }),
   getTasks: () => request('/api/tasks'),
   createTask: (body) =>
     request('/api/tasks', { method: 'POST', body: JSON.stringify(body) }),

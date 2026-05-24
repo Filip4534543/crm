@@ -1,11 +1,29 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
-export default function TasksPage({ tasks, onAdd, onToggle, onDelete }) {
+function formatDueDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso.includes('T') ? iso : `${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('pl-PL', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+export default function TasksPage({ tasks, leads = [], onAdd, onToggle, onDelete }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
   const [showDone, setShowDone] = useState(true);
+
+  const leadById = useMemo(() => {
+    const map = new Map();
+    for (const lead of leads) map.set(lead.id, lead);
+    return map;
+  }, [leads]);
 
   const active = tasks?.active ?? [];
   const done = tasks?.done ?? [];
@@ -16,9 +34,14 @@ export default function TasksPage({ tasks, onAdd, onToggle, onDelete }) {
     setError('');
     setAdding(true);
     try {
-      await onAdd({ title: title.trim(), notes: notes.trim() || undefined });
+      await onAdd({
+        title: title.trim(),
+        notes: notes.trim() || undefined,
+        due_date: dueDate || undefined,
+      });
       setTitle('');
       setNotes('');
+      setDueDate('');
     } catch (err) {
       setError(err.message || 'Nie udało się dodać zadania');
     } finally {
@@ -31,7 +54,7 @@ export default function TasksPage({ tasks, onAdd, onToggle, onDelete }) {
       <form className="task-add-form" onSubmit={handleSubmit}>
         <h2>Stos zadań</h2>
         <p className="tasks-hint">
-          Nowe zadania trafiają na wierzch stosu. Oznacz jako ukończone lub usuń.
+          Bez daty — na samej górze stosu. Z datą — najbliższa termin na górze.
         </p>
         <input
           type="text"
@@ -45,6 +68,13 @@ export default function TasksPage({ tasks, onAdd, onToggle, onDelete }) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
+        />
+        <label className="task-date-label">Data wykonania (opcjonalnie)</label>
+        <input
+          type="date"
+          className="task-date-input"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
         />
         {error && <p className="task-error">{error}</p>}
         <button type="submit" className="btn-primary" disabled={adding || !title.trim()}>
@@ -62,37 +92,50 @@ export default function TasksPage({ tasks, onAdd, onToggle, onDelete }) {
           <p className="tasks-empty">Stos pusty — dodaj pierwsze zadanie.</p>
         ) : (
           <div className="task-stack">
-            {active.map((task, index) => (
-              <article
-                key={task.id}
-                className="task-card"
-                style={{
-                  '--stack-index': index,
-                  zIndex: active.length - index,
-                }}
-              >
-                <label className="task-check">
-                  <input
-                    type="checkbox"
-                    checked={false}
-                    onChange={() => onToggle(task.id, true)}
-                  />
-                  <span className="check-ui" />
-                </label>
-                <div className="task-body">
-                  <h3>{task.title}</h3>
-                  {task.notes && <p className="task-notes">{task.notes}</p>}
-                </div>
-                <button
-                  type="button"
-                  className="task-delete"
-                  onClick={() => onDelete(task.id)}
-                  title="Usuń"
+            {active.map((task, index) => {
+              const linked = task.lead_id ? leadById.get(task.lead_id) : null;
+              const linkedName =
+                linked?.company_name || linked?.prospect_name || null;
+              const dueLabel = formatDueDate(task.due_date);
+
+              return (
+                <article
+                  key={task.id}
+                  className="task-card"
+                  style={{
+                    '--stack-index': index,
+                    zIndex: active.length - index,
+                  }}
                 >
-                  ×
-                </button>
-              </article>
-            ))}
+                  <label className="task-check">
+                    <input
+                      type="checkbox"
+                      checked={false}
+                      onChange={() => onToggle(task.id, true)}
+                    />
+                    <span className="check-ui" />
+                  </label>
+                  <div className="task-body">
+                    <h3>{task.title}</h3>
+                    {dueLabel && (
+                      <p className="task-due-date">Termin: {dueLabel}</p>
+                    )}
+                    {linkedName && (
+                      <p className="task-lead-link">Lead: {linkedName}</p>
+                    )}
+                    {task.notes && <p className="task-notes">{task.notes}</p>}
+                  </div>
+                  <button
+                    type="button"
+                    className="task-delete"
+                    onClick={() => onDelete(task.id)}
+                    title="Usuń"
+                  >
+                    ×
+                  </button>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>

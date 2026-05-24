@@ -15,8 +15,29 @@
   --muted: #8888a8;
   --accent: #a855f7;
   --accent-glow: rgba(168, 85, 247, 0.35);
+  --success: #86efac;
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.12);
   --win: #22c55e;
   --lost: #64748b;
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --login-gradient: radial-gradient(ellipse at 50% 0%, #1a1030 0%, var(--bg) 60%);
+}
+
+:root[data-theme='light'] {
+  --bg: #f0f1f5;
+  --surface: #ffffff;
+  --surface2: #e8eaef;
+  --border: #d0d4de;
+  --text: #1a1a24;
+  --muted: #5c5c72;
+  --accent: #7c3aed;
+  --accent-glow: rgba(124, 58, 237, 0.2);
+  --success: #15803d;
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.08);
+  --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --login-gradient: radial-gradient(ellipse at 50% 0%, #ede9fe 0%, var(--bg) 60%);
 }
 
 html,
@@ -55,7 +76,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at 50% 0%, #1a1030 0%, var(--bg) 60%);
+  background: var(--login-gradient);
 }
 
 .login-card {
@@ -575,6 +596,70 @@ a {
   color: var(--muted);
 }
 
+.btn-danger {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  font-weight: 500;
+}
+
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal-actions-split {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.stage-move-task-block {
+  margin: 1rem 0;
+  padding: 0.85rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.task-inline-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+.stage-move-task-fields {
+  margin-top: 0.75rem;
+}
+
+.stage-move-task-fields label {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.stage-move-task-fields label:first-child {
+  margin-top: 0;
+}
+
+.earnings-value {
+  color: var(--success);
+}
+
+.theme-toggle {
+  white-space: nowrap;
+}
+
 /* Lead detail */
 .detail-grid {
   display: grid;
@@ -823,10 +908,40 @@ a {
 }
 
 .task-error {
-  color: #f87171;
+  color: var(--danger);
   font-size: 0.8125rem;
   margin-bottom: 0.65rem;
   line-height: 1.4;
+}
+
+.task-date-label {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.task-date-input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  margin-bottom: 0.65rem;
+}
+
+.task-due-date {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-top: 0.15rem;
+}
+
+.task-lead-link {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
 }
 
 .task-stack-section {
@@ -891,7 +1006,7 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--card-shadow);
   transform: translateY(calc(var(--stack-index) * 6px)) scale(calc(1 - var(--stack-index) * 0.012));
   transform-origin: top center;
   transition: transform 0.2s, border-color 0.2s;

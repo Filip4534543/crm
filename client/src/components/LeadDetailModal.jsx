@@ -7,14 +7,33 @@ function formatDate(iso) {
   return new Date(normalized).toLocaleString('pl-PL');
 }
 
-export default function LeadDetailModal({ lead, onClose, onUpdateSum }) {
+export default function LeadDetailModal({ lead, onClose, onUpdateSum, onDelete }) {
   const [sum, setSum] = useState(
     lead.agreed_sum != null ? String(lead.agreed_sum) : ''
   );
+  const [deleting, setDeleting] = useState(false);
 
   function handleSumBlur() {
     const val = sum !== '' ? parseFloat(sum) : null;
     if (val !== lead.agreed_sum) onUpdateSum(lead.id, { agreed_sum: val });
+  }
+
+  async function handleDelete() {
+    const name = lead.company_name || lead.prospect_name || 'ten lead';
+    if (
+      !window.confirm(
+        `Usunąć lead „${name}”? Historia i powiązane zadania zostaną usunięte.`
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await onDelete(lead.id);
+      onClose();
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -94,7 +113,7 @@ export default function LeadDetailModal({ lead, onClose, onUpdateSum }) {
           {lead.earnings != null && (
             <>
               <dt>Zarobek</dt>
-              <dd style={{ color: '#86efac' }}>{lead.earnings} PLN</dd>
+              <dd className="earnings-value">{lead.earnings} PLN</dd>
             </>
           )}
         </dl>
@@ -124,7 +143,15 @@ export default function LeadDetailModal({ lead, onClose, onUpdateSum }) {
           )}
         </ul>
 
-        <div className="modal-actions" style={{ marginTop: '1rem' }}>
+        <div className="modal-actions modal-actions-split" style={{ marginTop: '1rem' }}>
+          <button
+            type="button"
+            className="btn-danger"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? 'Usuwanie…' : 'Usuń lead'}
+          </button>
           <button type="button" className="btn-secondary" onClick={onClose}>
             Zamknij
           </button>

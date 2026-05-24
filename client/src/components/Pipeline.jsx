@@ -136,11 +136,11 @@ export default function Pipeline({ leads, onMoveStage, onLeadClick }) {
     onLeadClick?.(lead);
   }
 
-  async function confirmMove({ description, agreed_sum }) {
+  async function confirmMove({ description, agreed_sum, task }) {
     if (!pendingMove) return;
     const { lead, toStage } = pendingMove;
     setPendingMove(null);
-    await onMoveStage(lead.id, { stage: toStage, description, agreed_sum });
+    await onMoveStage(lead.id, { stage: toStage, description, agreed_sum, task });
     const updated = leads.find((l) => l.id === lead.id);
     if (updated) setSelectedLead({ ...updated, stage: toStage });
     else setSelectedLead(null);

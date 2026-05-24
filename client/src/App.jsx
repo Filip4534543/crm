@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, getToken, clearToken } from './api';
+
+const THEME_KEY = 'filips-crm-theme';
+
+function getInitialTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
 import Login from './components/Login';
 import Pipeline from './components/Pipeline';
 import StatsPage from './components/StatsPage';
@@ -15,6 +25,16 @@ export default function App() {
   const [tab, setTab] = useState('pipeline');
   const [tasks, setTasks] = useState({ active: [], done: [] });
   const [selectedLead, setSelectedLead] = useState(null);
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* ignore */
+    }
+  }, [theme]);
 
   const refresh = useCallback(async () => {
     const [leadsData, statsData] = await Promise.all([
@@ -54,7 +74,16 @@ export default function App() {
   }, [authed, refresh]);
 
   async function handleMoveStage(id, body) {
-    await api.moveStage(id, body);
+    const { task, ...moveBody } = body;
+    await api.moveStage(id, moveBody);
+    if (task?.title?.trim()) {
+      await api.createTask({
+        title: task.title.trim(),
+        notes: task.notes,
+        due_date: task.due_date,
+        lead_id: task.lead_id ?? id,
+      });
+    }
     await refresh();
     if (selectedLead?.id === id) {
       const updated = (await api.getLeads()).find((l) => l.id === id);
@@ -125,6 +154,14 @@ export default function App() {
         <div className="header-actions">
           <button
             type="button"
+            className="btn-ghost theme-toggle"
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            title={theme === 'dark' ? 'Jasny motyw' : 'Ciemny motyw'}
+          >
+            {theme === 'dark' ? '☀ Jasny' : '☾ Ciemny'}
+          </button>
+          <button
+            type="button"
             className="btn-ghost"
             onClick={() => refresh()}
           >
@@ -158,6 +195,7 @@ export default function App() {
         {tab === 'tasks' && (
           <TasksPage
             tasks={tasks}
+            leads={leads}
             onAdd={async (body) => {
               await api.createTask(body);
               await refresh();
@@ -179,6 +217,11 @@ export default function App() {
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
           onUpdateSum={handleUpdateSum}
+          onDelete={async (id) => {
+            await api.deleteLead(id);
+            setSelectedLead(null);
+            await refresh();
+          }}
         />
       )}
     </div>

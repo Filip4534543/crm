@@ -156,6 +156,12 @@ app.patch('/api/leads/:id', authMiddleware, async (req, res) => {
   res.json(lead);
 });
 
+app.delete('/api/leads/:id', authMiddleware, async (req, res) => {
+  const ok = await db.deleteLead(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
 app.get('/api/stats', authMiddleware, async (req, res) => {
   res.json(await db.getStageCounts());
 });

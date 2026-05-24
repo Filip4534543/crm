@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { STAGES, STAGE_LABELS } = require('../constants');
+const { sortActiveTasks } = require('./sortTasks');
 
 let db;
 
@@ -53,7 +54,18 @@ function getDb() {
   CREATE INDEX IF NOT EXISTS idx_history_lead ON stage_history(lead_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_stack ON tasks(done, stack_position);
 `);
+  migrateSchema(db);
   return db;
+}
+
+function migrateSchema(database) {
+  const cols = database.prepare('PRAGMA table_info(tasks)').all().map((c) => c.name);
+  if (!cols.includes('due_date')) {
+    database.exec('ALTER TABLE tasks ADD COLUMN due_date TEXT');
+  }
+  if (!cols.includes('lead_id')) {
+    database.exec('ALTER TABLE tasks ADD COLUMN lead_id INTEGER');
+  }
 }
 
 function mapLeadRow(row) {
@@ -194,12 +206,11 @@ function updateLeadFields(id, fields) {
 }
 
 function getAllTasks() {
-  const active = getDb()
-    .prepare(
-      `SELECT * FROM tasks WHERE done = 0 ORDER BY stack_position DESC, id DESC`
-    )
+  const activeRows = getDb()
+    .prepare('SELECT * FROM tasks WHERE done = 0')
     .all()
     .map((t) => ({ ...t, done: Boolean(t.done) }));
+  const active = sortActiveTasks(activeRows);
   const done = getDb()
     .prepare(`SELECT * FROM tasks WHERE done = 1 ORDER BY updated_at DESC`)
     .all()
@@ -214,14 +225,20 @@ function nextStackPosition() {
   return (row?.max ?? 0) + 1;
 }
 
-function insertTask({ title, notes }) {
+function insertTask({ title, notes, due_date, lead_id }) {
   if (!title?.trim()) throw new Error('Title required');
   const pos = nextStackPosition();
   const result = getDb()
     .prepare(
-      `INSERT INTO tasks (title, notes, stack_position) VALUES (?, ?, ?)`
+      `INSERT INTO tasks (title, notes, stack_position, due_date, lead_id) VALUES (?, ?, ?, ?, ?)`
     )
-    .run(title.trim(), notes?.trim() || null, pos);
+    .run(
+      title.trim(),
+      notes?.trim() || null,
+      pos,
+      due_date?.trim() || null,
+      lead_id != null ? Number(lead_id) : null
+    );
   return getTaskById(result.lastInsertRowid);
 }
 
@@ -255,6 +272,10 @@ function updateTask(id, fields) {
     sets.push('notes = @notes');
     params.notes = fields.notes?.trim() || null;
   }
+  if (fields.due_date !== undefined) {
+    sets.push('due_date = @due_date');
+    params.due_date = fields.due_date?.trim() || null;
+  }
   if (sets.length === 0) return task;
   sets.push("updated_at = datetime('now')");
   getDb().prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = @id`).run(params);
@@ -263,6 +284,15 @@ function updateTask(id, fields) {
 
 function deleteTask(id) {
   return getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id).changes > 0;
+}
+
+function deleteLead(id) {
+  const d = getDb();
+  const lead = d.prepare('SELECT id FROM leads WHERE id = ?').get(id);
+  if (!lead) return false;
+  d.prepare('DELETE FROM tasks WHERE lead_id = ?').run(id);
+  d.prepare('DELETE FROM stage_history WHERE lead_id = ?').run(id);
+  return d.prepare('DELETE FROM leads WHERE id = ?').run(id).changes > 0;
 }
 
 const wrap =
@@ -281,4 +311,5 @@ module.exports = {
   insertTask: wrap(insertTask),
   updateTask: wrap(updateTask),
   deleteTask: wrap(deleteTask),
+  deleteLead: wrap(deleteLead),
 };
