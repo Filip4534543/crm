@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
-import { getEndpoints, saveEndpoints, resetEndpoints } from '../endpoints';
+import {
+  getEndpoints,
+  saveEndpoints,
+  resetEndpoints,
+  PRODUCTION_HOST,
+  isNetlifyHost,
+} from '../endpoints';
 import WebhookTester from './WebhookTester';
 
 const LEAD_FIELDS = [
@@ -69,7 +75,21 @@ export default function ApiPage({ onWebhookSuccess }) {
 
   const secretHeader = form.webhookSecret?.trim()
     ? `\nNagłówek: x-webhook-secret: ${form.webhookSecret.trim()}`
-    : '\n(Nagłówek x-webhook-secret opcjonalny — ustaw WEBHOOK_SECRET w .env serwera)';
+    : '\n(Nagłówek x-webhook-secret opcjonalny — w Netlify: Site settings → Environment variables → WEBHOOK_SECRET)';
+
+  function applyNetlifyDefaults() {
+    const host = isNetlifyHost() ? window.location.origin : PRODUCTION_HOST;
+    const next = {
+      apiBase: host,
+      testWebhook: `${host}/api/webhook/test`,
+      leadsWebhook: `${host}/api/webhook/leads`,
+      tasksWebhook: `${host}/api/webhook/tasks`,
+      tasksApi: `${host}/api/tasks`,
+      loginApi: `${host}/api/auth/login`,
+    };
+    setForm((f) => ({ ...f, ...next }));
+    setSaved(false);
+  }
 
   return (
     <div className="api-page">
@@ -83,18 +103,35 @@ export default function ApiPage({ onWebhookSuccess }) {
         onSuccess={onWebhookSuccess}
       />
 
+      <section className="api-section api-netlify-box">
+        <h2>Hosting Netlify</h2>
+        <p className="api-hint">
+          Produkcja: <strong>{PRODUCTION_HOST}</strong>. Webhooki n8n wysyłaj na ten adres
+          (ścieżki <code>/api/webhook/…</code>). Dane są w Netlify Blobs.
+        </p>
+        <p className="api-hint">
+          W panelu Netlify ustaw zmienne: <code>LOGIN_PASSWORD</code>,{' '}
+          <code>JWT_SECRET</code>, opcjonalnie <code>WEBHOOK_SECRET</code>.
+        </p>
+        <div className="api-actions">
+          <button type="button" className="btn-ghost" onClick={applyNetlifyDefaults}>
+            Ustaw URL Netlify
+          </button>
+        </div>
+      </section>
+
       <form className="api-section" onSubmit={handleSave}>
         <h2>Endpointy</h2>
         <p className="api-hint">
-          Zmień adresy, gdy CRM działa na innym hoście/porcie. Po zapisie odśwież stronę,
-          jeśli aplikacja nie ładuje danych.
+          Domyślnie API = ta sama domena co panel. Lokalnie (Vite :5173) API idzie na
+          localhost:3847. Po zapisie odśwież stronę.
         </p>
 
         <label>Bazowy URL API (panel CRM)</label>
         <input
           value={form.apiBase}
           onChange={(e) => handleChange('apiBase', e.target.value)}
-          placeholder="http://localhost:3847"
+          placeholder={PRODUCTION_HOST}
         />
 
         <label>Webhook testowy (ping — bez dodawania danych)</label>

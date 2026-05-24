@@ -1,8 +1,9 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { STAGES, STAGE_LABELS } = require('../constants');
 
-const dataDir = path.join(__dirname, '..', 'data');
+const dataDir = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
 const db = new Database(path.join(dataDir, 'crm.db'));
@@ -33,8 +34,7 @@ db.exec(`
     from_stage TEXT,
     to_stage TEXT NOT NULL,
     description TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS tasks (
@@ -52,32 +52,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_tasks_stack ON tasks(done, stack_position);
 `);
 
-const STAGES = [
-  'not_contacted_yet',
-  'missed_call_1',
-  'missed_call_2',
-  'interested_in_demo',
-  'demo_send',
-  'written_message_send',
-  'contact_later',
-  'in_process',
-  'win',
-  'lost',
-];
-
-const STAGE_LABELS = {
-  not_contacted_yet: 'Not contacted yet',
-  missed_call_1: 'Missed call 1',
-  missed_call_2: 'Missed call 2',
-  interested_in_demo: 'Interested in demo',
-  demo_send: 'Demo send',
-  written_message_send: 'Written message send',
-  contact_later: 'Contact later',
-  in_process: 'In process',
-  win: 'Win',
-  lost: 'Lost',
-};
-
 function mapLeadRow(row) {
   if (!row) return null;
   const history = db
@@ -86,10 +60,8 @@ function mapLeadRow(row) {
        FROM stage_history WHERE lead_id = ? ORDER BY created_at DESC`
     )
     .all(row.id);
-
   const lastDescription =
     history.find((h) => h.description)?.description ?? null;
-
   return {
     ...row,
     stage_label: STAGE_LABELS[row.stage] || row.stage,
@@ -99,15 +71,14 @@ function mapLeadRow(row) {
 }
 
 function getAllLeads() {
-  const rows = db
+  return db
     .prepare('SELECT * FROM leads ORDER BY updated_at DESC')
-    .all();
-  return rows.map(mapLeadRow);
+    .all()
+    .map(mapLeadRow);
 }
 
 function getLeadById(id) {
-  const row = db.prepare('SELECT * FROM leads WHERE id = ?').get(id);
-  return mapLeadRow(row);
+  return mapLeadRow(db.prepare('SELECT * FROM leads WHERE id = ?').get(id));
 }
 
 function getStageCounts() {
@@ -126,35 +97,34 @@ function getStageCounts() {
 }
 
 function insertLead(data) {
-  const stmt = db.prepare(`
-    INSERT INTO leads (
+  const result = db
+    .prepare(
+      `INSERT INTO leads (
       company_name, maps_url, phone, address, website,
       rating, rating_count, processed, contact_name, prospect_name, stage
     ) VALUES (
       @company_name, @maps_url, @phone, @address, @website,
       @rating, @rating_count, @processed, @contact_name, @prospect_name, 'not_contacted_yet'
+    )`
     )
-  `);
-
-  const result = stmt.run({
-    company_name: data.company_name ?? data.Company_Name ?? null,
-    maps_url: data.maps_url ?? data.Maps_url ?? null,
-    phone: data.phone ?? data.Phone ?? null,
-    address: data.address ?? data.Adress ?? data.Address ?? null,
-    website: data.website ?? data.Website ?? null,
-    rating: parseFloat(data.rating ?? data.Rating) || null,
-    rating_count: parseInt(data.rating_count ?? data.Rating_count, 10) || null,
-    processed: data.processed ?? data.Processed ?? null,
-    contact_name: data.contact_name ?? data.Contact_Name ?? null,
-    prospect_name: data.prospect_name ?? data.Prospect_Name ?? null,
-  });
-
+    .run({
+      company_name: data.company_name ?? data.Company_Name ?? null,
+      maps_url: data.maps_url ?? data.Maps_url ?? null,
+      phone: data.phone ?? data.Phone ?? null,
+      address: data.address ?? data.Adress ?? data.Address ?? null,
+      website: data.website ?? data.Website ?? null,
+      rating: parseFloat(data.rating ?? data.Rating) || null,
+      rating_count:
+        parseInt(data.rating_count ?? data.Rating_count, 10) || null,
+      processed: data.processed ?? data.Processed ?? null,
+      contact_name: data.contact_name ?? data.Contact_Name ?? null,
+      prospect_name: data.prospect_name ?? data.Prospect_Name ?? null,
+    });
   const leadId = result.lastInsertRowid;
   db.prepare(
     `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
      VALUES (?, NULL, 'not_contacted_yet', 'Nowy lead z n8n')`
   ).run(leadId);
-
   return getLeadById(leadId);
 }
 
@@ -193,7 +163,13 @@ function updateLeadStage(id, toStage, description, agreedSum) {
 }
 
 function updateLeadFields(id, fields) {
-  const allowed = ['agreed_sum', 'earnings', 'contact_name', 'prospect_name', 'phone'];
+  const allowed = [
+    'agreed_sum',
+    'earnings',
+    'contact_name',
+    'prospect_name',
+    'phone',
+  ];
   const sets = [];
   const params = { id };
   for (const key of allowed) {
@@ -215,14 +191,10 @@ function getAllTasks() {
     )
     .all()
     .map((t) => ({ ...t, done: Boolean(t.done) }));
-
   const done = db
-    .prepare(
-      `SELECT * FROM tasks WHERE done = 1 ORDER BY updated_at DESC`
-    )
+    .prepare(`SELECT * FROM tasks WHERE done = 1 ORDER BY updated_at DESC`)
     .all()
     .map((t) => ({ ...t, done: Boolean(t.done) }));
-
   return { active, done };
 }
 
@@ -253,7 +225,6 @@ function getTaskById(id) {
 function updateTask(id, fields) {
   const task = getTaskById(id);
   if (!task) return null;
-
   if (fields.done !== undefined) {
     const done = fields.done ? 1 : 0;
     let stackPosition = task.stack_position;
@@ -263,7 +234,6 @@ function updateTask(id, fields) {
     ).run(done, stackPosition, id);
     return getTaskById(id);
   }
-
   const sets = [];
   const params = { id };
   if (fields.title !== undefined) {
@@ -281,22 +251,23 @@ function updateTask(id, fields) {
 }
 
 function deleteTask(id) {
-  const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
-  return result.changes > 0;
+  return db.prepare('DELETE FROM tasks WHERE id = ?').run(id).changes > 0;
 }
 
+const wrap =
+  (fn) =>
+  (...args) =>
+    Promise.resolve(fn(...args));
+
 module.exports = {
-  db,
-  STAGES,
-  STAGE_LABELS,
-  getAllLeads,
-  getLeadById,
-  getStageCounts,
-  insertLead,
-  updateLeadStage,
-  updateLeadFields,
-  getAllTasks,
-  insertTask,
-  updateTask,
-  deleteTask,
+  getAllLeads: wrap(getAllLeads),
+  getLeadById: wrap(getLeadById),
+  getStageCounts: wrap(getStageCounts),
+  insertLead: wrap(insertLead),
+  updateLeadStage: wrap(updateLeadStage),
+  updateLeadFields: wrap(updateLeadFields),
+  getAllTasks: wrap(getAllTasks),
+  insertTask: wrap(insertTask),
+  updateTask: wrap(updateTask),
+  deleteTask: wrap(deleteTask),
 };

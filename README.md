@@ -15,23 +15,36 @@ npm run dev
 
 Hasło domyślne: `Neo2552@` (zmień w `.env` → `LOGIN_PASSWORD`).
 
-## Produkcja na lokalnym serwerze
+## Produkcja — Netlify
+
+**Domena:** https://filipscrm.netlify.app
+
+1. Połącz repozytorium z Netlify (Build command i publish są w `netlify.toml`).
+2. W **Site settings → Environment variables** dodaj:
+   - `LOGIN_PASSWORD` — hasło do panelu
+   - `JWT_SECRET` — losowy ciąg
+   - `WEBHOOK_SECRET` — opcjonalnie, ten sam w n8n jako nagłówek `x-webhook-secret`
+3. Wdróż. API działa jako Netlify Function; dane w **Netlify Blobs**.
+
+W zakładce **API** kliknij **Ustaw URL Netlify** — webhooki będą wskazywać na `filipscrm.netlify.app`.
+
+## Produkcja lokalna (opcjonalnie)
 
 ```bash
 npm run build
 NODE_ENV=production npm start
 ```
 
-Aplikacja: http://localhost:3847 (lub IP serwera + port z `.env`).
+Aplikacja: http://localhost:3847. Dane w `data/crm.db` (SQLite).
 
 ## Webhook n8n
 
 W scenariuszu n8n dodaj węzeł **HTTP Request**:
 
 - **Method:** POST  
-- **Test (ping):** `GET/POST http://TWÓJ_SERWER:3847/api/webhook/test`  
-- **URL leadów:** `http://TWÓJ_SERWER:3847/api/webhook/leads`  
-- **URL zadań:** `http://TWÓJ_SERWER:3847/api/webhook/tasks`  
+- **Test (ping):** `GET/POST https://filipscrm.netlify.app/api/webhook/test`  
+- **URL leadów:** `https://filipscrm.netlify.app/api/webhook/leads`  
+- **URL zadań:** `https://filipscrm.netlify.app/api/webhook/tasks`  
 - **Body:** JSON — jeden obiekt lub tablica obiektów (tylko leady)  
 
 Obsługiwane pola (wielkość liter jak w eksporcie):
@@ -70,4 +83,5 @@ Stages: Not contacted yet → Missed call 1/2 → Interested in demo → Demo se
 
 ## Dane
 
-SQLite: folder `data/crm.db` (tworzony automatycznie).
+- **Netlify:** Netlify Blobs (automatycznie)
+- **Lokalnie:** SQLite w `data/crm.db`

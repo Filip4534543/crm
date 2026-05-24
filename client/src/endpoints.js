@@ -1,9 +1,17 @@
 const STORAGE_KEY = 'filips_crm_endpoints';
+export const PRODUCTION_HOST = 'https://filipscrm.netlify.app';
 
 function defaultHost() {
-  if (typeof window === 'undefined') return 'http://localhost:3847';
-  if (window.location.port === '5173') return 'http://localhost:3847';
-  return window.location.origin;
+  if (typeof window === 'undefined') return PRODUCTION_HOST;
+  const { hostname, origin, port } = window.location;
+  if (
+    hostname === 'filipscrm.netlify.app' ||
+    hostname.endsWith('.netlify.app')
+  ) {
+    return origin;
+  }
+  if (port === '5173') return 'http://localhost:3847';
+  return origin;
 }
 
 export function getDefaultEndpoints() {
@@ -47,5 +55,11 @@ export function resolveApiUrl(path) {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   const base = (getEndpoints().apiBase || '').replace(/\/$/, '');
   const p = path.startsWith('/') ? path : `/${path}`;
-  return base ? `${base}${p}` : p;
+  if (!base) return p;
+  return `${base}${p}`;
+}
+
+export function isNetlifyHost() {
+  if (typeof window === 'undefined') return false;
+  return window.location.hostname.endsWith('.netlify.app');
 }

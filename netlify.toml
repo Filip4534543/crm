@@ -1,0 +1,24 @@
+[build]
+  command = "npm run install:all && npm run build"
+  publish = "client/dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NETLIFY = "true"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["server/**"]
+  external_node_modules = ["better-sqlite3"]
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
