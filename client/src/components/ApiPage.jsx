@@ -110,8 +110,10 @@ export default function ApiPage({ onWebhookSuccess }) {
           (ścieżki <code>/api/webhook/…</code>). Dane są w Netlify Blobs.
         </p>
         <p className="api-hint">
-          W panelu Netlify ustaw zmienne: <code>LOGIN_PASSWORD</code>,{' '}
-          <code>JWT_SECRET</code>, opcjonalnie <code>WEBHOOK_SECRET</code>.
+          W panelu Netlify ustaw: <code>LOGIN_PASSWORD</code>, <code>JWT_SECRET</code>,
+          opcjonalnie <code>WEBHOOK_SECRET</code>. Jeśli test leada zwraca błąd Blobs,
+          dodaj <code>SITE_ID</code> (Project ID) i <code>NETLIFY_BLOBS_TOKEN</code>{' '}
+          (Personal Access Token z uprawnieniem Blobs).
         </p>
         <div className="api-actions">
           <button type="button" className="btn-ghost" onClick={applyNetlifyDefaults}>

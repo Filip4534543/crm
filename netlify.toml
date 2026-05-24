@@ -16,7 +16,7 @@
 [functions]
   node_bundler = "esbuild"
   included_files = ["server/**"]
-  external_node_modules = ["better-sqlite3"]
+  external_node_modules = ["better-sqlite3", "@netlify/blobs"]
 
 [[redirects]]
   from = "/api/*"

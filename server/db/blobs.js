@@ -19,7 +19,18 @@ function emptyData() {
 }
 
 function getStoreInstance() {
-  return getStore({ name: 'filips-crm-data', consistency: 'strong' });
+  const siteID = process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
+  const token =
+    process.env.NETLIFY_BLOBS_TOKEN ||
+    process.env.NETLIFY_AUTH_TOKEN;
+
+  const opts = { name: 'filips-crm-data' };
+
+  if (siteID && token) {
+    return getStore({ ...opts, siteID, token });
+  }
+
+  return getStore(opts);
 }
 
 async function loadData() {
