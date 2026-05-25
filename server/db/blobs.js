@@ -93,22 +93,69 @@ async function getStageCounts() {
   }));
 }
 
-async function insertLead(payload) {
+function pickText(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return null;
+}
+
+function pickNumber(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null || value === '') continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function normalizeLeadInput(payload = {}) {
+  const lead = {
+    company_name: pickText(payload.company_name, payload.Company_Name),
+    maps_url: pickText(payload.maps_url, payload.Maps_url),
+    phone: pickText(payload.phone, payload.Phone),
+    address: pickText(payload.address, payload.Adress, payload.Address),
+    website: pickText(payload.website, payload.Website),
+    rating: pickNumber(payload.rating, payload.Rating),
+    rating_count: pickNumber(payload.rating_count, payload.Rating_count),
+    processed: pickText(payload.processed, payload.Processed),
+    contact_name: pickText(payload.contact_name, payload.Contact_Name),
+    prospect_name: pickText(payload.prospect_name, payload.Prospect_Name),
+    initial_description: pickText(
+      payload.initial_description,
+      payload.description,
+      payload.note
+    ),
+  };
+
+  if (!lead.company_name && !lead.prospect_name) {
+    throw new Error('Podaj nazwę firmy lub prospecta');
+  }
+
+  return lead;
+}
+
+async function insertLead(payload, options = {}) {
   const data = await loadData();
   const ts = now();
+  const leadInput = normalizeLeadInput(payload);
+  const initialDescription =
+    leadInput.initial_description ||
+    (options.source === 'manual' ? 'Lead dodany ręcznie' : 'Nowy lead z n8n');
   const lead = {
     id: data.nextLeadId++,
-    company_name: payload.company_name ?? payload.Company_Name ?? null,
-    maps_url: payload.maps_url ?? payload.Maps_url ?? null,
-    phone: payload.phone ?? payload.Phone ?? null,
-    address: payload.address ?? payload.Adress ?? payload.Address ?? null,
-    website: payload.website ?? payload.Website ?? null,
-    rating: parseFloat(payload.rating ?? payload.Rating) || null,
-    rating_count:
-      parseInt(payload.rating_count ?? payload.Rating_count, 10) || null,
-    processed: payload.processed ?? payload.Processed ?? null,
-    contact_name: payload.contact_name ?? payload.Contact_Name ?? null,
-    prospect_name: payload.prospect_name ?? payload.Prospect_Name ?? null,
+    company_name: leadInput.company_name,
+    maps_url: leadInput.maps_url,
+    phone: leadInput.phone,
+    address: leadInput.address,
+    website: leadInput.website,
+    rating: leadInput.rating,
+    rating_count: leadInput.rating_count,
+    processed: leadInput.processed,
+    contact_name: leadInput.contact_name,
+    prospect_name: leadInput.prospect_name,
     stage: 'not_contacted_yet',
     agreed_sum: null,
     earnings: null,
@@ -121,7 +168,7 @@ async function insertLead(payload) {
     lead_id: lead.id,
     from_stage: null,
     to_stage: 'not_contacted_yet',
-    description: 'Nowy lead z n8n',
+    description: initialDescription,
     created_at: ts,
   });
   await saveData(data);
@@ -259,23 +306,31 @@ async function deleteTask(id) {
 
 async function deleteLead(id) {
   const data = await loadData();
-  const lead = data.leads.find((l) => l.id === id);
-  if (!lead) return false;
-  data.leads = data.leads.filter((l) => l.id !== id);
-  data.history = data.history.filter((h) => h.lead_id !== id);
-  data.tasks = data.tasks.filter((t) => t.lead_id !== id);
+  const deleted = deleteLeadIdsFromData(data, [id]);
+  if (deleted === 0) return false;
   await saveData(data);
   return true;
+}
+
+function deleteLeadIdsFromData(data, ids) {
+  const uniqueIds = [...new Set(ids.map(Number).filter(Number.isFinite))];
+  if (!uniqueIds.length) return 0;
+  const idSet = new Set(uniqueIds);
+  const before = data.leads.length;
+  data.leads = data.leads.filter((l) => !idSet.has(l.id));
+  const deleted = before - data.leads.length;
+  if (deleted === 0) return 0;
+  data.history = data.history.filter((h) => !idSet.has(h.lead_id));
+  data.tasks = data.tasks.filter((t) => !idSet.has(t.lead_id));
+  return deleted;
 }
 
 async function deleteAllLeadsInStage(stage) {
   assertBulkStage(stage);
   const data = await loadData();
   const ids = data.leads.filter((l) => l.stage === stage).map((l) => l.id);
-  let deleted = 0;
-  for (const id of ids) {
-    if (await deleteLead(id)) deleted++;
-  }
+  const deleted = deleteLeadIdsFromData(data, ids);
+  if (deleted > 0) await saveData(data);
   return { deleted, stage };
 }
 
@@ -284,10 +339,8 @@ async function deleteDuplicateLeadsInStage(stage) {
   const data = await loadData();
   const leads = data.leads.filter((l) => l.stage === stage);
   const ids = duplicateIdsToRemove(leads);
-  let deleted = 0;
-  for (const id of ids) {
-    if (await deleteLead(id)) deleted++;
-  }
+  const deleted = deleteLeadIdsFromData(data, ids);
+  if (deleted > 0) await saveData(data);
   return { deleted, stage, groupsAffected: ids.length };
 }
 

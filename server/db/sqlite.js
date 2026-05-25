@@ -113,7 +113,55 @@ function getStageCounts() {
   }));
 }
 
-function insertLead(data) {
+function pickText(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return null;
+}
+
+function pickNumber(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null || value === '') continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function normalizeLeadInput(data = {}) {
+  const lead = {
+    company_name: pickText(data.company_name, data.Company_Name),
+    maps_url: pickText(data.maps_url, data.Maps_url),
+    phone: pickText(data.phone, data.Phone),
+    address: pickText(data.address, data.Adress, data.Address),
+    website: pickText(data.website, data.Website),
+    rating: pickNumber(data.rating, data.Rating),
+    rating_count: pickNumber(data.rating_count, data.Rating_count),
+    processed: pickText(data.processed, data.Processed),
+    contact_name: pickText(data.contact_name, data.Contact_Name),
+    prospect_name: pickText(data.prospect_name, data.Prospect_Name),
+    initial_description: pickText(
+      data.initial_description,
+      data.description,
+      data.note
+    ),
+  };
+
+  if (!lead.company_name && !lead.prospect_name) {
+    throw new Error('Podaj nazwę firmy lub prospecta');
+  }
+
+  return lead;
+}
+
+function insertLead(data, options = {}) {
+  const lead = normalizeLeadInput(data);
+  const initialDescription =
+    lead.initial_description ||
+    (options.source === 'manual' ? 'Lead dodany ręcznie' : 'Nowy lead z n8n');
   const result = getDb()
     .prepare(
       `INSERT INTO leads (
@@ -125,25 +173,24 @@ function insertLead(data) {
     )`
     )
     .run({
-      company_name: data.company_name ?? data.Company_Name ?? null,
-      maps_url: data.maps_url ?? data.Maps_url ?? null,
-      phone: data.phone ?? data.Phone ?? null,
-      address: data.address ?? data.Adress ?? data.Address ?? null,
-      website: data.website ?? data.Website ?? null,
-      rating: parseFloat(data.rating ?? data.Rating) || null,
-      rating_count:
-        parseInt(data.rating_count ?? data.Rating_count, 10) || null,
-      processed: data.processed ?? data.Processed ?? null,
-      contact_name: data.contact_name ?? data.Contact_Name ?? null,
-      prospect_name: data.prospect_name ?? data.Prospect_Name ?? null,
+      company_name: lead.company_name,
+      maps_url: lead.maps_url,
+      phone: lead.phone,
+      address: lead.address,
+      website: lead.website,
+      rating: lead.rating,
+      rating_count: lead.rating_count,
+      processed: lead.processed,
+      contact_name: lead.contact_name,
+      prospect_name: lead.prospect_name,
     });
   const leadId = result.lastInsertRowid;
   getDb()
     .prepare(
       `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
-     VALUES (?, NULL, 'not_contacted_yet', 'Nowy lead z n8n')`
+     VALUES (?, NULL, 'not_contacted_yet', ?)`
     )
-    .run(leadId);
+    .run(leadId, initialDescription);
   return getLeadById(leadId);
 }
 
@@ -288,12 +335,20 @@ function deleteTask(id) {
 }
 
 function deleteLead(id) {
+  return deleteLeadIds([id]) > 0;
+}
+
+function deleteLeadIds(ids) {
+  const uniqueIds = [...new Set(ids.map(Number).filter(Number.isFinite))];
+  if (!uniqueIds.length) return 0;
   const d = getDb();
-  const lead = d.prepare('SELECT id FROM leads WHERE id = ?').get(id);
-  if (!lead) return false;
-  d.prepare('DELETE FROM tasks WHERE lead_id = ?').run(id);
-  d.prepare('DELETE FROM stage_history WHERE lead_id = ?').run(id);
-  return d.prepare('DELETE FROM leads WHERE id = ?').run(id).changes > 0;
+  const placeholders = uniqueIds.map(() => '?').join(', ');
+  return d.transaction((leadIds) => {
+    d.prepare(`DELETE FROM tasks WHERE lead_id IN (${placeholders})`).run(...leadIds);
+    d.prepare(`DELETE FROM stage_history WHERE lead_id IN (${placeholders})`).run(...leadIds);
+    return d.prepare(`DELETE FROM leads WHERE id IN (${placeholders})`).run(...leadIds)
+      .changes;
+  })(uniqueIds);
 }
 
 function deleteAllLeadsInStage(stage) {
@@ -302,10 +357,7 @@ function deleteAllLeadsInStage(stage) {
     .prepare('SELECT id FROM leads WHERE stage = ?')
     .all(stage)
     .map((r) => r.id);
-  let deleted = 0;
-  for (const id of ids) {
-    if (deleteLead(id)) deleted++;
-  }
+  const deleted = deleteLeadIds(ids);
   return { deleted, stage };
 }
 
@@ -313,10 +365,7 @@ function deleteDuplicateLeadsInStage(stage) {
   assertBulkStage(stage);
   const leads = getDb().prepare('SELECT * FROM leads WHERE stage = ?').all(stage);
   const ids = duplicateIdsToRemove(leads);
-  let deleted = 0;
-  for (const id of ids) {
-    if (deleteLead(id)) deleted++;
-  }
+  const deleted = deleteLeadIds(ids);
   return { deleted, stage, groupsAffected: ids.length };
 }
 

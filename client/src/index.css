@@ -202,6 +202,7 @@ a {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .app-main {
@@ -346,6 +347,49 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.stage-shortcuts-stats {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.stage-shortcuts-stats-head {
+  padding: 0.5rem 0.65rem 0.35rem;
+  font-size: 0.62rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stage-shortcuts-stats-list {
+  padding: 0 0.5rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.stage-shortcuts-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.stage-shortcuts-stat .label {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.stage-shortcuts-stat strong {
+  font-size: 0.82rem;
+  color: var(--text);
 }
 
 .stage-shortcut {
@@ -671,6 +715,44 @@ a {
   flex-wrap: wrap;
 }
 
+.lead-form-hint {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.lead-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.lead-form-field {
+  margin-bottom: 0;
+}
+
+.lead-form-field--full {
+  grid-column: 1 / -1;
+}
+
+.lead-form-field span {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.lead-form-field input,
+.lead-form-field textarea {
+  margin-bottom: 0;
+}
+
+.form-error {
+  color: var(--danger);
+  font-size: 0.8125rem;
+  margin-top: 1rem;
+}
+
 .stage-move-task-block {
   margin: 1rem 0;
   padding: 0.85rem;
@@ -820,10 +902,220 @@ a {
   margin-bottom: 1.75rem;
 }
 
+.stats-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 .stats-section h2 {
   font-size: 0.9375rem;
   font-weight: 600;
-  margin-bottom: 1rem;
+  margin-bottom: 0.2rem;
+  color: var(--muted);
+}
+
+.stats-section-copy {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+  max-width: 720px;
+}
+
+.activity-today-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.activity-mini-card {
+  padding: 1rem 1.05rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--metric-color) 35%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--metric-color) 18%, var(--surface)) 0%,
+    var(--surface) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.activity-mini-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--metric-color);
+}
+
+.activity-mini-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.activity-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+.activity-range-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.range-pill {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.range-pill:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.range-pill.active {
+  border-color: var(--accent);
+  background: rgba(168, 85, 247, 0.12);
+  color: var(--text);
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.18);
+}
+
+.activity-range-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.range-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.range-input input {
+  min-width: 148px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.activity-range-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.activity-range-card {
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--metric-color) 30%, var(--border));
+  background: var(--surface);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.activity-range-card-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.activity-range-card strong {
+  font-size: 1.2rem;
+  color: var(--metric-color);
+}
+
+.activity-chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1rem 0.75rem;
+}
+
+.activity-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+.activity-chart-head strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.15rem;
+}
+
+.activity-chart-head span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.activity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.activity-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.activity-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 12px color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.activity-chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.15rem;
+}
+
+.activity-chart-svg {
+  width: 100%;
+  min-width: 700px;
+  display: block;
+}
+
+.activity-grid-line {
+  stroke: color-mix(in srgb, var(--border) 80%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 4 6;
+}
+
+.activity-axis-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.activity-empty {
+  padding: 2rem 1rem 2.2rem;
+  text-align: center;
   color: var(--muted);
 }
 
@@ -915,6 +1207,24 @@ a {
 
 .stat-card.lost .stat-card-count {
   color: var(--lost);
+}
+
+@media (max-width: 960px) {
+  .stage-shortcuts {
+    width: 156px;
+  }
+
+  .activity-chart-svg {
+    min-width: 620px;
+  }
+
+  .lead-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lead-form-field--full {
+    grid-column: auto;
+  }
 }
 
 /* Tasks stack */

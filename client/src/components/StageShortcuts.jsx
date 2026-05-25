@@ -41,6 +41,7 @@ function ShortcutItem({
 export default function StageShortcuts({
   stages,
   counts,
+  todayStats,
   selectedLead,
   focusedStageId,
   dragOverStageId,
@@ -81,6 +82,24 @@ export default function StageShortcuts({
           />
         ))}
       </nav>
+
+      <div className="stage-shortcuts-stats">
+        <div className="stage-shortcuts-stats-head">Dzisiaj</div>
+        <div className="stage-shortcuts-stats-list">
+          <div className="stage-shortcuts-stat">
+            <span className="label">1. kontakt</span>
+            <strong>{todayStats?.firstContact ?? 0}</strong>
+          </div>
+          <div className="stage-shortcuts-stat">
+            <span className="label">Demo chętni</span>
+            <strong>{todayStats?.interestedInDemo ?? 0}</strong>
+          </div>
+          <div className="stage-shortcuts-stat">
+            <span className="label">Demo wysłane</span>
+            <strong>{todayStats?.demoSent ?? 0}</strong>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }

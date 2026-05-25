@@ -55,6 +55,8 @@ export const api = {
     }),
   checkAuth: () => request('/api/auth/check'),
   getLeads: () => request('/api/leads'),
+  createLead: (body) =>
+    request('/api/leads', { method: 'POST', body: JSON.stringify(body) }),
   getStats: () => request('/api/stats'),
   moveStage: (id, body) =>
     request(`/api/leads/${id}/stage`, {

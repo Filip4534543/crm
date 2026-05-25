@@ -76,6 +76,7 @@ function resolveDropStage(overId) {
 
 export default function Pipeline({
   leads,
+  todayStats,
   onMoveStage,
   onLeadClick,
   onDeleteAllNotContacted,
@@ -236,6 +237,7 @@ export default function Pipeline({
           <StageShortcuts
             stages={STAGES}
             counts={counts}
+            todayStats={todayStats}
             selectedLead={selectedLead}
             focusedStageId={focusedStageId}
             dragOverStageId={dragOverStageId}

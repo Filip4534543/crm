@@ -128,6 +128,15 @@ app.get('/api/leads', authMiddleware, async (req, res) => {
   res.json(await db.getAllLeads());
 });
 
+app.post('/api/leads', authMiddleware, async (req, res) => {
+  try {
+    const lead = await db.insertLead(req.body, { source: 'manual' });
+    res.status(201).json(lead);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get('/api/leads/:id', authMiddleware, async (req, res) => {
   const lead = await db.getLeadById(Number(req.params.id));
   if (!lead) return res.status(404).json({ error: 'Not found' });

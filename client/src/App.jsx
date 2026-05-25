@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api, getToken, clearToken } from './api';
 
 const THEME_KEY = 'filips-crm-theme';
@@ -16,6 +16,8 @@ import StatsPage from './components/StatsPage';
 import TasksPage from './components/TasksPage';
 import ApiPage from './components/ApiPage';
 import LeadDetailModal from './components/LeadDetailModal';
+import ManualLeadModal from './components/ManualLeadModal';
+import { buildActivityStats } from './utils/activityStats';
 
 export default function App() {
   const [authed, setAuthed] = useState(false);
@@ -25,7 +27,9 @@ export default function App() {
   const [tab, setTab] = useState('pipeline');
   const [tasks, setTasks] = useState({ active: [], done: [] });
   const [selectedLead, setSelectedLead] = useState(null);
+  const [showManualLeadModal, setShowManualLeadModal] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
+  const activityStats = useMemo(() => buildActivityStats(leads), [leads]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -98,6 +102,12 @@ export default function App() {
     if (updated) setSelectedLead(updated);
   }
 
+  async function handleCreateLead(body) {
+    await api.createLead(body);
+    await refresh();
+    setShowManualLeadModal(false);
+  }
+
   if (loading) {
     return (
       <div className="login-page">
@@ -154,6 +164,13 @@ export default function App() {
         <div className="header-actions">
           <button
             type="button"
+            className="btn-primary"
+            onClick={() => setShowManualLeadModal(true)}
+          >
+            Dodaj lead
+          </button>
+          <button
+            type="button"
             className="btn-ghost theme-toggle"
             onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
             title={theme === 'dark' ? 'Jasny motyw' : 'Ciemny motyw'}
@@ -185,6 +202,7 @@ export default function App() {
           <div className="pipeline-wrap">
             <Pipeline
               leads={leads}
+              todayStats={activityStats.today}
               onMoveStage={handleMoveStage}
               onLeadClick={(lead) => setSelectedLead(lead)}
               onDeleteAllNotContacted={async () => {
@@ -200,7 +218,13 @@ export default function App() {
             />
           </div>
         )}
-        {tab === 'stats' && <StatsPage stats={stats} leads={leads} />}
+        {tab === 'stats' && (
+          <StatsPage
+            stats={stats}
+            leads={leads}
+            activityStats={activityStats}
+          />
+        )}
         {tab === 'api' && <ApiPage onWebhookSuccess={refresh} />}
         {tab === 'tasks' && (
           <TasksPage
@@ -232,6 +256,13 @@ export default function App() {
             setSelectedLead(null);
             await refresh();
           }}
+        />
+      )}
+
+      {showManualLeadModal && (
+        <ManualLeadModal
+          onClose={() => setShowManualLeadModal(false)}
+          onSubmit={handleCreateLead}
         />
       )}
     </div>
