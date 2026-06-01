@@ -55,6 +55,7 @@ export const api = {
     }),
   checkAuth: () => request('/api/auth/check'),
   getLeads: () => request('/api/leads'),
+  getDeletedLeads: () => request('/api/leads/deleted/all'),
   createLead: (body) =>
     request('/api/leads', { method: 'POST', body: JSON.stringify(body) }),
   getStats: () => request('/api/stats'),
@@ -69,6 +70,10 @@ export const api = {
       body: JSON.stringify(body),
     }),
   deleteLead: (id) => request(`/api/leads/${id}`, { method: 'DELETE' }),
+  restoreDeletedLead: (deletedId) =>
+    request(`/api/leads/deleted/${deletedId}/restore`, { method: 'POST' }),
+  deleteDeletedLead: (deletedId) =>
+    request(`/api/leads/deleted/${deletedId}`, { method: 'DELETE' }),
   deleteAllNotContacted: () =>
     request('/api/leads/stage/not_contacted_yet', { method: 'DELETE' }),
   removeDuplicatesNotContacted: () =>

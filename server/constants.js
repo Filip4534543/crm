@@ -1,5 +1,7 @@
 const STAGES = [
   'not_contacted_yet',
+  'gatekeeper_1',
+  'gatekeeper_2',
   'missed_call_1',
   'missed_call_2',
   'interested_in_demo',
@@ -13,6 +15,8 @@ const STAGES = [
 
 const STAGE_LABELS = {
   not_contacted_yet: 'Not contacted yet',
+  gatekeeper_1: 'Gatekeeper 1',
+  gatekeeper_2: 'Gatekeeper 2',
   missed_call_1: 'Missed call 1',
   missed_call_2: 'Missed call 2',
   interested_in_demo: 'Interested in demo',

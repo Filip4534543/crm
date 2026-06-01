@@ -98,6 +98,10 @@ export default function StageShortcuts({
             <span className="label">Demo wysłane</span>
             <strong>{todayStats?.demoSent ?? 0}</strong>
           </div>
+          <div className="stage-shortcuts-stat">
+            <span className="label">Call time (min)</span>
+            <strong>{todayStats?.callMinutes ?? 0}</strong>
+          </div>
         </div>
       </div>
     </aside>

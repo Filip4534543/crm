@@ -22,7 +22,7 @@ export default function LeadDetailModal({ lead, onClose, onUpdateSum, onDelete }
     const name = lead.company_name || lead.prospect_name || 'ten lead';
     if (
       !window.confirm(
-        `Usunąć lead „${name}”? Historia i powiązane zadania zostaną usunięte.`
+        `Przenieść lead „${name}” do zakładki „Usunięte”?`
       )
     ) {
       return;

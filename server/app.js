@@ -137,13 +137,17 @@ app.post('/api/leads', authMiddleware, async (req, res) => {
   }
 });
 
-app.get('/api/leads/:id', authMiddleware, async (req, res) => {
+app.get('/api/leads/:id(\\d+)', authMiddleware, async (req, res) => {
   const lead = await db.getLeadById(Number(req.params.id));
   if (!lead) return res.status(404).json({ error: 'Not found' });
   res.json(lead);
 });
 
-app.patch('/api/leads/:id/stage', authMiddleware, async (req, res) => {
+app.get('/api/leads/deleted/all', authMiddleware, async (req, res) => {
+  res.json(await db.getDeletedLeads());
+});
+
+app.patch('/api/leads/:id(\\d+)/stage', authMiddleware, async (req, res) => {
   const { stage, description, agreed_sum } = req.body;
   try {
     const lead = await db.updateLeadStage(
@@ -159,14 +163,30 @@ app.patch('/api/leads/:id/stage', authMiddleware, async (req, res) => {
   }
 });
 
-app.patch('/api/leads/:id', authMiddleware, async (req, res) => {
+app.patch('/api/leads/:id(\\d+)', authMiddleware, async (req, res) => {
   const lead = await db.updateLeadFields(Number(req.params.id), req.body);
   if (!lead) return res.status(404).json({ error: 'Not found' });
   res.json(lead);
 });
 
-app.delete('/api/leads/:id', authMiddleware, async (req, res) => {
+app.delete('/api/leads/:id(\\d+)', authMiddleware, async (req, res) => {
   const ok = await db.deleteLead(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
+app.post('/api/leads/deleted/:id/restore', authMiddleware, async (req, res) => {
+  try {
+    const lead = await db.restoreDeletedLead(Number(req.params.id));
+    if (!lead) return res.status(404).json({ error: 'Not found' });
+    res.json(lead);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/leads/deleted/:id', authMiddleware, async (req, res) => {
+  const ok = await db.deleteDeletedLead(Number(req.params.id));
   if (!ok) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
 });

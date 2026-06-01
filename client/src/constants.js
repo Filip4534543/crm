@@ -1,5 +1,7 @@
 export const STAGES = [
   { id: 'not_contacted_yet', label: 'Not contacted yet', color: '#6366f1' },
+  { id: 'gatekeeper_1', label: 'Gatekeeper 1', color: '#7c3aed' },
+  { id: 'gatekeeper_2', label: 'Gatekeeper 2', color: '#9333ea' },
   { id: 'missed_call_1', label: 'Missed call 1', color: '#8b5cf6' },
   { id: 'missed_call_2', label: 'Missed call 2', color: '#a855f7' },
   { id: 'interested_in_demo', label: 'Interested in demo', color: '#d946ef' },

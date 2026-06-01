@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { STAGE_MAP } from '../constants';
 import {
   clampDayKey,
@@ -34,6 +34,37 @@ const ACTIVITY_METRICS = [
     color: '#34d399',
   },
 ];
+
+const GOALS_KEY = 'filips-crm-daily-goals-v1';
+
+function getDayKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatSeconds(totalSeconds) {
+  const safe = Math.max(0, Number(totalSeconds) || 0);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(
+    seconds
+  ).padStart(2, '0')}`;
+}
+
+function loadGoals() {
+  try {
+    const raw = localStorage.getItem(GOALS_KEY);
+    if (!raw) {
+      return { firstContact: 5, interestedInDemo: 2, demoSent: 2, callMinutes: 90 };
+    }
+    return { firstContact: 5, interestedInDemo: 2, demoSent: 2, callMinutes: 90, ...JSON.parse(raw) };
+  } catch {
+    return { firstContact: 5, interestedInDemo: 2, demoSent: 2, callMinutes: 90 };
+  }
+}
 
 function buildLinePath(points) {
   return points.reduce(
@@ -166,10 +197,29 @@ ${metric.label}: ${point.item[metric.key] || 0}`}
   );
 }
 
-export default function StatsPage({ stats, leads, activityStats }) {
+export default function StatsPage({
+  stats,
+  leads,
+  activityStats,
+  callSecondsToday = 0,
+  callTimerRunning = false,
+  onToggleCallTimer,
+  nextContactStats,
+}) {
   const [rangeKey, setRangeKey] = useState('30');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [goals, setGoals] = useState(loadGoals);
+  const todayKey = getDayKey();
+  const callMinutesToday = Math.floor(callSecondsToday / 60);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+    } catch {
+      /* ignore */
+    }
+  }, [goals]);
 
   const stageStats = stats || [];
   const total = stageStats.reduce((sum, s) => sum + s.count, 0);
@@ -232,6 +282,32 @@ export default function StatsPage({ stats, leads, activityStats }) {
   const hasRangeActivity = filteredTimeline.some(
     (item) => item.firstContact || item.interestedInDemo || item.demoSent
   );
+  const goalProgress = [
+    {
+      key: 'firstContact',
+      label: '1. kontakt',
+      done: activityStats?.today?.firstContact ?? 0,
+      goal: Number(goals.firstContact || 0),
+    },
+    {
+      key: 'interestedInDemo',
+      label: 'Demo chętni',
+      done: activityStats?.today?.interestedInDemo ?? 0,
+      goal: Number(goals.interestedInDemo || 0),
+    },
+    {
+      key: 'demoSent',
+      label: 'Demo wysłane',
+      done: activityStats?.today?.demoSent ?? 0,
+      goal: Number(goals.demoSent || 0),
+    },
+    {
+      key: 'callMinutes',
+      label: 'Call time (min)',
+      done: callMinutesToday,
+      goal: Number(goals.callMinutes || 0),
+    },
+  ];
 
   if (!stageStats.length) {
     return (
@@ -271,7 +347,80 @@ export default function StatsPage({ stats, leads, activityStats }) {
             <span className="summary-label">Zarobek (PLN)</span>
           </div>
         )}
+        <div className="summary-card accent">
+          <span className="summary-value">{nextContactStats?.planned ?? 0}</span>
+          <span className="summary-label">Kolejny kontakt (ustawione)</span>
+        </div>
+        <div className="summary-card lost">
+          <span className="summary-value">{nextContactStats?.overdue ?? 0}</span>
+          <span className="summary-label">Kolejny kontakt po terminie</span>
+        </div>
+        <div className="summary-card">
+          <span className="summary-value">{nextContactStats?.dueToday ?? 0}</span>
+          <span className="summary-label">Kolejny kontakt dziś</span>
+        </div>
+        <div className="summary-card">
+          <span className="summary-value">{nextContactStats?.dueFuture ?? 0}</span>
+          <span className="summary-label">Kolejny kontakt w przyszłości</span>
+        </div>
       </div>
+
+      <section className="stats-section">
+        <div className="stats-section-head">
+          <div>
+            <h2>Cele dzienne ({todayKey})</h2>
+            <p className="stats-section-copy">
+              Ustaw swoje targety i od razu sprawdzaj, czy cel dnia został zrealizowany.
+            </p>
+          </div>
+        </div>
+        <div className="goals-grid">
+          {goalProgress.map((item) => {
+            const done = item.done >= item.goal && item.goal > 0;
+            return (
+              <div key={item.key} className={`goal-card${done ? ' done' : ''}`}>
+                <label>{item.label}</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={goals[item.key]}
+                  onChange={(event) =>
+                    setGoals((prev) => ({
+                      ...prev,
+                      [item.key]: Math.max(0, Number(event.target.value || 0)),
+                    }))
+                  }
+                />
+                <p>
+                  {item.done}/{item.goal}{' '}
+                  <strong>{done ? 'Cel zrealizowany' : 'W trakcie'}</strong>
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="stats-section">
+        <div className="stats-section-head">
+          <div>
+            <h2>Timer rozmów</h2>
+            <p className="stats-section-copy">
+              Mierzy łączny czas dzwonienia w bieżącym dniu.
+            </p>
+          </div>
+        </div>
+        <div className="call-timer-card">
+          <strong>{formatSeconds(callSecondsToday)}</strong>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => onToggleCallTimer?.()}
+          >
+            {callTimerRunning ? 'Zatrzymaj timer' : 'Start timer'}
+          </button>
+        </div>
+      </section>
 
       <section className="stats-section">
         <div className="stats-section-head">

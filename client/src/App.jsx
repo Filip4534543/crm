@@ -1,7 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api, getToken, clearToken } from './api';
+import Login from './components/Login';
+import Pipeline from './components/Pipeline';
+import StatsPage from './components/StatsPage';
+import TasksPage from './components/TasksPage';
+import ApiPage from './components/ApiPage';
+import DeletedLeadsPage from './components/DeletedLeadsPage';
+import LeadDetailModal from './components/LeadDetailModal';
+import ManualLeadModal from './components/ManualLeadModal';
+import { buildActivityStats } from './utils/activityStats';
 
 const THEME_KEY = 'filips-crm-theme';
+const CALL_TIMER_KEY = 'filips-crm-call-timer-v1';
 
 function getInitialTheme() {
   try {
@@ -10,14 +20,54 @@ function getInitialTheme() {
     return 'dark';
   }
 }
-import Login from './components/Login';
-import Pipeline from './components/Pipeline';
-import StatsPage from './components/StatsPage';
-import TasksPage from './components/TasksPage';
-import ApiPage from './components/ApiPage';
-import LeadDetailModal from './components/LeadDetailModal';
-import ManualLeadModal from './components/ManualLeadModal';
-import { buildActivityStats } from './utils/activityStats';
+
+function parseDateLike(value) {
+  if (!value) return null;
+  const normalized = String(value).includes('T')
+    ? String(value)
+    : String(value).replace(' ', 'T');
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dayKeyFromDate(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function loadCallTimerState() {
+  try {
+    const raw = localStorage.getItem(CALL_TIMER_KEY);
+    if (!raw) return { runningSince: null, dayTotals: {} };
+    const parsed = JSON.parse(raw);
+    return {
+      runningSince: parsed?.runningSince || null,
+      dayTotals: parsed?.dayTotals || {},
+    };
+  } catch {
+    return { runningSince: null, dayTotals: {} };
+  }
+}
+
+function resolveLeadLastContact(lead, tasksByLead) {
+  const dates = [];
+  const push = (val) => {
+    const parsed = parseDateLike(val);
+    if (parsed) dates.push(parsed.getTime());
+  };
+  push(lead.updated_at);
+  for (const entry of lead.history || []) {
+    push(entry.created_at);
+  }
+  for (const task of tasksByLead.get(lead.id) || []) {
+    push(task.updated_at);
+    push(task.created_at);
+  }
+  if (!dates.length) return null;
+  return new Date(Math.max(...dates)).toISOString();
+}
 
 export default function App() {
   const [authed, setAuthed] = useState(false);
@@ -26,10 +76,46 @@ export default function App() {
   const [stats, setStats] = useState([]);
   const [tab, setTab] = useState('pipeline');
   const [tasks, setTasks] = useState({ active: [], done: [] });
+  const [deletedLeads, setDeletedLeads] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
   const [showManualLeadModal, setShowManualLeadModal] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
-  const activityStats = useMemo(() => buildActivityStats(leads), [leads]);
+  const [callTimer, setCallTimer] = useState(loadCallTimerState);
+  const [timerTick, setTimerTick] = useState(0);
+  const allTasks = useMemo(() => [...(tasks?.active || []), ...(tasks?.done || [])], [tasks]);
+  const leadsWithMeta = useMemo(() => {
+    const tasksByLead = new Map();
+    for (const task of allTasks) {
+      if (task.lead_id == null) continue;
+      if (!tasksByLead.has(task.lead_id)) tasksByLead.set(task.lead_id, []);
+      tasksByLead.get(task.lead_id).push(task);
+    }
+    return leads.map((lead) => ({
+      ...lead,
+      last_contact_at: resolveLeadLastContact(lead, tasksByLead),
+    }));
+  }, [leads, allTasks]);
+  const activityStats = useMemo(() => buildActivityStats(leadsWithMeta), [leadsWithMeta]);
+  const callSecondsToday = useMemo(() => {
+    const day = dayKeyFromDate();
+    const base = Number(callTimer.dayTotals?.[day] || 0);
+    if (!callTimer.runningSince) return base;
+    const started = parseDateLike(callTimer.runningSince);
+    if (!started) return base;
+    return base + Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000));
+  }, [callTimer, timerTick]);
+  const nextContactStats = useMemo(() => {
+    const today = dayKeyFromDate();
+    const planned = (tasks?.active || []).filter(
+      (task) => task.lead_id != null && Boolean(task.due_date)
+    );
+    return {
+      planned: planned.length,
+      overdue: planned.filter((task) => task.due_date < today).length,
+      dueToday: planned.filter((task) => task.due_date === today).length,
+      dueFuture: planned.filter((task) => task.due_date > today).length,
+    };
+  }, [tasks]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -40,13 +126,29 @@ export default function App() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(CALL_TIMER_KEY, JSON.stringify(callTimer));
+    } catch {
+      /* ignore */
+    }
+  }, [callTimer]);
+
+  useEffect(() => {
+    if (!callTimer.runningSince) return undefined;
+    const interval = setInterval(() => setTimerTick((v) => v + 1), 1000);
+    return () => clearInterval(interval);
+  }, [callTimer.runningSince]);
+
   const refresh = useCallback(async () => {
-    const [leadsData, statsData] = await Promise.all([
+    const [leadsData, statsData, deletedData] = await Promise.all([
       api.getLeads(),
       api.getStats(),
+      api.getDeletedLeads().catch(() => []),
     ]);
     setLeads(leadsData);
     setStats(statsData);
+    setDeletedLeads(Array.isArray(deletedData) ? deletedData : []);
     try {
       const tasksData = await api.getTasks();
       setTasks(tasksData);
@@ -108,6 +210,26 @@ export default function App() {
     setShowManualLeadModal(false);
   }
 
+  function toggleCallTimer() {
+    setCallTimer((current) => {
+      const today = dayKeyFromDate();
+      const dayTotals = { ...(current.dayTotals || {}) };
+      if (!current.runningSince) {
+        return { ...current, runningSince: new Date().toISOString() };
+      }
+      const started = parseDateLike(current.runningSince);
+      const elapsed = started
+        ? Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000))
+        : 0;
+      dayTotals[today] = Number(dayTotals[today] || 0) + elapsed;
+      return {
+        ...current,
+        runningSince: null,
+        dayTotals,
+      };
+    });
+  }
+
   if (loading) {
     return (
       <div className="login-page">
@@ -160,8 +282,22 @@ export default function App() {
           >
             API
           </button>
+          <button
+            type="button"
+            className={`tab-btn${tab === 'deleted' ? ' active' : ''}`}
+            onClick={() => setTab('deleted')}
+          >
+            Usunięte
+          </button>
         </nav>
         <div className="header-actions">
+          <button
+            type="button"
+            className={`btn-ghost${callTimer.runningSince ? ' active' : ''}`}
+            onClick={toggleCallTimer}
+          >
+            {callTimer.runningSince ? 'Stop call timer' : 'Start call timer'}
+          </button>
           <button
             type="button"
             className="btn-primary"
@@ -201,8 +337,12 @@ export default function App() {
         {tab === 'pipeline' && (
           <div className="pipeline-wrap">
             <Pipeline
-              leads={leads}
-              todayStats={activityStats.today}
+              leads={leadsWithMeta}
+              tasks={tasks}
+              todayStats={{
+                ...activityStats.today,
+                callMinutes: Math.floor(callSecondsToday / 60),
+              }}
               onMoveStage={handleMoveStage}
               onLeadClick={(lead) => setSelectedLead(lead)}
               onDeleteAllNotContacted={async () => {
@@ -221,15 +361,34 @@ export default function App() {
         {tab === 'stats' && (
           <StatsPage
             stats={stats}
-            leads={leads}
+            leads={leadsWithMeta}
+            tasks={tasks}
             activityStats={activityStats}
+            callSecondsToday={callSecondsToday}
+            callTimerRunning={Boolean(callTimer.runningSince)}
+            onToggleCallTimer={toggleCallTimer}
+            nextContactStats={nextContactStats}
           />
         )}
         {tab === 'api' && <ApiPage onWebhookSuccess={refresh} />}
+        {tab === 'deleted' && (
+          <DeletedLeadsPage
+            leads={deletedLeads}
+            onRestore={async (deletedId) => {
+              await api.restoreDeletedLead(deletedId);
+              await refresh();
+            }}
+            onDeletePermanent={async (deletedId) => {
+              await api.deleteDeletedLead(deletedId);
+              await refresh();
+            }}
+          />
+        )}
         {tab === 'tasks' && (
           <TasksPage
             tasks={tasks}
-            leads={leads}
+            leads={leadsWithMeta}
+            onLeadPreview={(lead) => setSelectedLead(lead)}
             onAdd={async (body) => {
               await api.createTask(body);
               await refresh();

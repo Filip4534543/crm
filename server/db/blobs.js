@@ -1,7 +1,11 @@
 const { getStore } = require('@netlify/blobs');
 const { STAGES, STAGE_LABELS } = require('../constants');
 const { sortActiveTasks } = require('./sortTasks');
-const { duplicateIdsToRemove, assertBulkStage } = require('./leadUtils');
+const {
+  findBestDuplicateMatch,
+  duplicateIdsToRemoveForStage,
+  assertBulkStage,
+} = require('./leadUtils');
 
 const DATA_KEY = 'crm-main';
 
@@ -12,9 +16,11 @@ function now() {
 function emptyData() {
   return {
     nextLeadId: 1,
+    nextDeletedLeadId: 1,
     nextHistoryId: 1,
     nextTaskId: 1,
     leads: [],
+    deleted_leads: [],
     history: [],
     tasks: [],
   };
@@ -72,6 +78,22 @@ async function getAllLeads() {
     .slice()
     .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
     .map((row) => mapLeadRow(data, row));
+}
+
+function mapDeletedLeadRow(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    stage_label: STAGE_LABELS[row.stage] || row.stage,
+  };
+}
+
+async function getDeletedLeads() {
+  const data = await loadData();
+  return (data.deleted_leads || [])
+    .slice()
+    .sort((a, b) => (a.deleted_at < b.deleted_at ? 1 : -1))
+    .map(mapDeletedLeadRow);
 }
 
 async function getLeadById(id) {
@@ -141,6 +163,20 @@ async function insertLead(payload, options = {}) {
   const data = await loadData();
   const ts = now();
   const leadInput = normalizeLeadInput(payload);
+  const duplicate = findBestDuplicateMatch(
+    leadInput,
+    [
+      { source: 'active', leads: data.leads || [] },
+      { source: 'deleted', leads: data.deleted_leads || [] },
+    ],
+    {}
+  );
+  if (duplicate) {
+    const sourceLabel = duplicate.source === 'deleted' ? 'usuniętym' : 'aktywnym';
+    throw new Error(
+      `Duplikat leada (dopasowanie: ${duplicate.matchedFields.join(', ')}) — rekord istnieje już w ${sourceLabel} leadzie #${duplicate.lead.id}`
+    );
+  }
   const initialDescription =
     leadInput.initial_description ||
     (options.source === 'manual' ? 'Lead dodany ręcznie' : 'Nowy lead z n8n');
@@ -312,11 +348,28 @@ async function deleteLead(id) {
   return true;
 }
 
+function moveLeadsToDeletedFromData(data, ids) {
+  const idSet = new Set(ids.map(Number));
+  const rows = data.leads.filter((lead) => idSet.has(lead.id));
+  if (!rows.length) return 0;
+  const ts = now();
+  for (const row of rows) {
+    data.deleted_leads.push({
+      ...row,
+      deleted_id: data.nextDeletedLeadId++,
+      original_id: row.id,
+      deleted_at: ts,
+    });
+  }
+  return rows.length;
+}
+
 function deleteLeadIdsFromData(data, ids) {
   const uniqueIds = [...new Set(ids.map(Number).filter(Number.isFinite))];
   if (!uniqueIds.length) return 0;
   const idSet = new Set(uniqueIds);
   const before = data.leads.length;
+  moveLeadsToDeletedFromData(data, uniqueIds);
   data.leads = data.leads.filter((l) => !idSet.has(l.id));
   const deleted = before - data.leads.length;
   if (deleted === 0) return 0;
@@ -338,15 +391,80 @@ async function deleteDuplicateLeadsInStage(stage) {
   assertBulkStage(stage);
   const data = await loadData();
   const leads = data.leads.filter((l) => l.stage === stage);
-  const ids = duplicateIdsToRemove(leads);
+  const activeOutsideScope = data.leads.filter((l) => l.stage !== stage);
+  const ids = duplicateIdsToRemoveForStage({
+    scopedLeads: leads,
+    activeLeadsOutsideScope: activeOutsideScope,
+    deletedLeads: data.deleted_leads || [],
+  });
   const deleted = deleteLeadIdsFromData(data, ids);
   if (deleted > 0) await saveData(data);
   return { deleted, stage, groupsAffected: ids.length };
 }
 
+async function restoreDeletedLead(deletedId) {
+  const data = await loadData();
+  const idx = (data.deleted_leads || []).findIndex((row) => row.deleted_id === Number(deletedId));
+  if (idx === -1) return null;
+  const row = data.deleted_leads[idx];
+  const duplicate = findBestDuplicateMatch(
+    row,
+    [{ source: 'active', leads: data.leads || [] }],
+    {}
+  );
+  if (duplicate) {
+    throw new Error(
+      `Nie można przywrócić: aktywny duplikat #${duplicate.lead.id} (${duplicate.matchedFields.join(', ')})`
+    );
+  }
+  const ts = now();
+  const restored = {
+    id: data.nextLeadId++,
+    company_name: row.company_name,
+    maps_url: row.maps_url,
+    phone: row.phone,
+    address: row.address,
+    website: row.website,
+    rating: row.rating,
+    rating_count: row.rating_count,
+    processed: row.processed,
+    contact_name: row.contact_name,
+    prospect_name: row.prospect_name,
+    stage: row.stage || 'not_contacted_yet',
+    agreed_sum: row.agreed_sum ?? null,
+    earnings: row.earnings ?? null,
+    created_at: row.created_at || ts,
+    updated_at: ts,
+  };
+  data.leads.push(restored);
+  data.history.push({
+    id: data.nextHistoryId++,
+    lead_id: restored.id,
+    from_stage: null,
+    to_stage: restored.stage,
+    description: 'Przywrócono z kosza',
+    created_at: ts,
+  });
+  data.deleted_leads.splice(idx, 1);
+  await saveData(data);
+  return getLeadById(restored.id);
+}
+
+async function deleteDeletedLead(deletedId) {
+  const data = await loadData();
+  const before = (data.deleted_leads || []).length;
+  data.deleted_leads = (data.deleted_leads || []).filter(
+    (row) => row.deleted_id !== Number(deletedId)
+  );
+  if (data.deleted_leads.length === before) return false;
+  await saveData(data);
+  return true;
+}
+
 module.exports = {
   getAllLeads,
   getLeadById,
+  getDeletedLeads,
   getStageCounts,
   insertLead,
   updateLeadStage,
@@ -358,4 +476,6 @@ module.exports = {
   deleteLead,
   deleteAllLeadsInStage,
   deleteDuplicateLeadsInStage,
+  restoreDeletedLead,
+  deleteDeletedLead,
 };

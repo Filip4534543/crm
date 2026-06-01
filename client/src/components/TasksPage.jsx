@@ -11,7 +11,14 @@ function formatDueDate(iso) {
   });
 }
 
-export default function TasksPage({ tasks, leads = [], onAdd, onToggle, onDelete }) {
+export default function TasksPage({
+  tasks,
+  leads = [],
+  onAdd,
+  onToggle,
+  onDelete,
+  onLeadPreview,
+}) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -121,7 +128,16 @@ export default function TasksPage({ tasks, leads = [], onAdd, onToggle, onDelete
                       <p className="task-due-date">Termin: {dueLabel}</p>
                     )}
                     {linkedName && (
-                      <p className="task-lead-link">Lead: {linkedName}</p>
+                      <p className="task-lead-link">
+                        Lead:{' '}
+                        <button
+                          type="button"
+                          className="task-lead-preview"
+                          onClick={() => onLeadPreview?.(linked)}
+                        >
+                          {linkedName}
+                        </button>
+                      </p>
                     )}
                     {task.notes && <p className="task-notes">{task.notes}</p>}
                   </div>

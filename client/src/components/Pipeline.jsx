@@ -76,6 +76,7 @@ function resolveDropStage(overId) {
 
 export default function Pipeline({
   leads,
+  tasks,
   todayStats,
   onMoveStage,
   onLeadClick,
@@ -90,6 +91,7 @@ export default function Pipeline({
   const [dragOverStageId, setDragOverStageId] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const columnRefs = useRef({});
+  const allTasks = [...(tasks?.active || []), ...(tasks?.done || [])];
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -195,7 +197,7 @@ export default function Pipeline({
     if (notContactedCount === 0) return;
     if (
       !window.confirm(
-        'Usunąć duplikaty w „Not contacted yet”? Zostanie najstarszy lead z każdej grupy (ten sam telefon, nazwa lub link Maps).'
+        'Usunąć duplikaty w „Not contacted yet”? Zostanie najstarszy lead, a porównanie obejmie wszystkie pola oraz kosz (Usunięte).'
       )
     ) {
       return;
@@ -267,6 +269,7 @@ export default function Pipeline({
                     <LeadCard
                       key={lead.id}
                       lead={lead}
+                      tasks={allTasks.filter((task) => task.lead_id === lead.id)}
                       selected={selectedLead?.id === lead.id}
                       onClick={handleLeadClick}
                       onDoubleClick={handleLeadDoubleClick}

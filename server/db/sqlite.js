@@ -2,7 +2,11 @@ const path = require('path');
 const fs = require('fs');
 const { STAGES, STAGE_LABELS } = require('../constants');
 const { sortActiveTasks } = require('./sortTasks');
-const { BULK_STAGE, duplicateIdsToRemove, assertBulkStage } = require('./leadUtils');
+const {
+  duplicateIdsToRemoveForStage,
+  findBestDuplicateMatch,
+  assertBulkStage,
+} = require('./leadUtils');
 
 let db;
 
@@ -51,9 +55,31 @@ function getDb() {
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS deleted_leads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    original_id INTEGER,
+    company_name TEXT,
+    maps_url TEXT,
+    phone TEXT,
+    address TEXT,
+    website TEXT,
+    rating REAL,
+    rating_count INTEGER,
+    processed TEXT,
+    contact_name TEXT,
+    prospect_name TEXT,
+    stage TEXT,
+    agreed_sum REAL,
+    earnings REAL,
+    created_at TEXT,
+    updated_at TEXT,
+    deleted_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_leads_stage ON leads(stage);
   CREATE INDEX IF NOT EXISTS idx_history_lead ON stage_history(lead_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_stack ON tasks(done, stack_position);
+  CREATE INDEX IF NOT EXISTS idx_deleted_leads_deleted_at ON deleted_leads(deleted_at);
 `);
   migrateSchema(db);
   return db;
@@ -96,6 +122,17 @@ function getAllLeads() {
 
 function getLeadById(id) {
   return mapLeadRow(getDb().prepare('SELECT * FROM leads WHERE id = ?').get(id));
+}
+
+function getDeletedLeads() {
+  return getDb()
+    .prepare('SELECT * FROM deleted_leads ORDER BY deleted_at DESC')
+    .all()
+    .map((row) => ({
+      ...row,
+      deleted_id: row.id,
+      stage_label: STAGE_LABELS[row.stage] || row.stage,
+    }));
 }
 
 function getStageCounts() {
@@ -159,6 +196,20 @@ function normalizeLeadInput(data = {}) {
 
 function insertLead(data, options = {}) {
   const lead = normalizeLeadInput(data);
+  const duplicate = findBestDuplicateMatch(
+    lead,
+    [
+      { source: 'active', leads: getDb().prepare('SELECT * FROM leads').all() },
+      { source: 'deleted', leads: getDb().prepare('SELECT * FROM deleted_leads').all() },
+    ],
+    {}
+  );
+  if (duplicate) {
+    const sourceLabel = duplicate.source === 'deleted' ? 'usuniętym' : 'aktywnym';
+    throw new Error(
+      `Duplikat leada (dopasowanie: ${duplicate.matchedFields.join(', ')}) — rekord istnieje już w ${sourceLabel} leadzie #${duplicate.lead.id}`
+    );
+  }
   const initialDescription =
     lead.initial_description ||
     (options.source === 'manual' ? 'Lead dodany ręcznie' : 'Nowy lead z n8n');
@@ -344,6 +395,18 @@ function deleteLeadIds(ids) {
   const d = getDb();
   const placeholders = uniqueIds.map(() => '?').join(', ');
   return d.transaction((leadIds) => {
+    d.prepare(
+      `INSERT INTO deleted_leads (
+        original_id, company_name, maps_url, phone, address, website,
+        rating, rating_count, processed, contact_name, prospect_name,
+        stage, agreed_sum, earnings, created_at, updated_at, deleted_at
+      )
+      SELECT
+        id, company_name, maps_url, phone, address, website,
+        rating, rating_count, processed, contact_name, prospect_name,
+        stage, agreed_sum, earnings, created_at, updated_at, datetime('now')
+      FROM leads WHERE id IN (${placeholders})`
+    ).run(...leadIds);
     d.prepare(`DELETE FROM tasks WHERE lead_id IN (${placeholders})`).run(...leadIds);
     d.prepare(`DELETE FROM stage_history WHERE lead_id IN (${placeholders})`).run(...leadIds);
     return d.prepare(`DELETE FROM leads WHERE id IN (${placeholders})`).run(...leadIds)
@@ -364,9 +427,71 @@ function deleteAllLeadsInStage(stage) {
 function deleteDuplicateLeadsInStage(stage) {
   assertBulkStage(stage);
   const leads = getDb().prepare('SELECT * FROM leads WHERE stage = ?').all(stage);
-  const ids = duplicateIdsToRemove(leads);
+  const activeOutsideScope = getDb().prepare('SELECT * FROM leads WHERE stage != ?').all(stage);
+  const deletedLeads = getDb().prepare('SELECT * FROM deleted_leads').all();
+  const ids = duplicateIdsToRemoveForStage({
+    scopedLeads: leads,
+    activeLeadsOutsideScope: activeOutsideScope,
+    deletedLeads,
+  });
   const deleted = deleteLeadIds(ids);
   return { deleted, stage, groupsAffected: ids.length };
+}
+
+function restoreDeletedLead(deletedId) {
+  const d = getDb();
+  const row = d.prepare('SELECT * FROM deleted_leads WHERE id = ?').get(Number(deletedId));
+  if (!row) return null;
+  const duplicate = findBestDuplicateMatch(
+    row,
+    [{ source: 'active', leads: d.prepare('SELECT * FROM leads').all() }],
+    {}
+  );
+  if (duplicate) {
+    throw new Error(
+      `Nie można przywrócić: aktywny duplikat #${duplicate.lead.id} (${duplicate.matchedFields.join(', ')})`
+    );
+  }
+  const restored = d
+    .prepare(
+      `INSERT INTO leads (
+      company_name, maps_url, phone, address, website,
+      rating, rating_count, processed, contact_name, prospect_name,
+      stage, agreed_sum, earnings, created_at, updated_at
+    ) VALUES (
+      @company_name, @maps_url, @phone, @address, @website,
+      @rating, @rating_count, @processed, @contact_name, @prospect_name,
+      @stage, @agreed_sum, @earnings, @created_at, datetime('now')
+    )`
+    )
+    .run({
+      company_name: row.company_name,
+      maps_url: row.maps_url,
+      phone: row.phone,
+      address: row.address,
+      website: row.website,
+      rating: row.rating,
+      rating_count: row.rating_count,
+      processed: row.processed,
+      contact_name: row.contact_name,
+      prospect_name: row.prospect_name,
+      stage: row.stage || 'not_contacted_yet',
+      agreed_sum: row.agreed_sum ?? null,
+      earnings: row.earnings ?? null,
+      created_at: row.created_at || row.deleted_at || null,
+    });
+  const leadId = restored.lastInsertRowid;
+  d.prepare(
+    `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
+     VALUES (?, NULL, ?, ?)`
+  ).run(leadId, row.stage || 'not_contacted_yet', 'Przywrócono z kosza');
+  d.prepare('DELETE FROM deleted_leads WHERE id = ?').run(Number(deletedId));
+  return getLeadById(leadId);
+}
+
+function deleteDeletedLead(deletedId) {
+  return getDb().prepare('DELETE FROM deleted_leads WHERE id = ?').run(Number(deletedId))
+    .changes > 0;
 }
 
 const wrap =
@@ -377,6 +502,7 @@ const wrap =
 module.exports = {
   getAllLeads: wrap(getAllLeads),
   getLeadById: wrap(getLeadById),
+  getDeletedLeads: wrap(getDeletedLeads),
   getStageCounts: wrap(getStageCounts),
   insertLead: wrap(insertLead),
   updateLeadStage: wrap(updateLeadStage),
@@ -388,4 +514,6 @@ module.exports = {
   deleteLead: wrap(deleteLead),
   deleteAllLeadsInStage: wrap(deleteAllLeadsInStage),
   deleteDuplicateLeadsInStage: wrap(deleteDuplicateLeadsInStage),
+  restoreDeletedLead: wrap(restoreDeletedLead),
+  deleteDeletedLead: wrap(deleteDeletedLead),
 };
