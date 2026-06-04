@@ -20,10 +20,12 @@ function formatDate(value) {
 export default function NewLeadsPage({
   leads,
   onAssignPipeline,
+  onAssignAllInbox,
   onLeadClick,
   onDeleteLead,
 }) {
   const [busyId, setBusyId] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const inboxLeads = leads
     .filter((lead) => (lead.pipeline || 'websites') === 'inbox')
@@ -42,6 +44,25 @@ export default function NewLeadsPage({
     }
   }
 
+  async function handleAssignAll(pipeline) {
+    const label = PIPELINES[pipeline]?.label || pipeline;
+    if (
+      !window.confirm(
+        `Przenieść wszystkie ${inboxLeads.length} leadów do pipeline ${label} (Not contacted yet)?`
+      )
+    ) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      await onAssignAllInbox?.(pipeline);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  const anyBusy = bulkBusy || busyId != null;
+
   return (
     <div className="new-leads-page">
       <header className="new-leads-header">
@@ -52,7 +73,30 @@ export default function NewLeadsPage({
             (oba startują w „Not contacted yet”).
           </p>
         </div>
-        <div className="badge new-leads-count">{inboxLeads.length} oczekujących</div>
+        <div className="new-leads-header-side">
+          <div className="badge new-leads-count">{inboxLeads.length} oczekujących</div>
+          {inboxLeads.length > 0 && (
+            <div className="new-leads-bulk">
+              <span className="new-leads-bulk-label">Wszystkie:</span>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={anyBusy}
+                onClick={() => handleAssignAll('websites')}
+              >
+                → {PIPELINES.websites.label}
+              </button>
+              <button
+                type="button"
+                className="btn-ghost new-leads-btn-seo"
+                disabled={anyBusy}
+                onClick={() => handleAssignAll('seo')}
+              >
+                → {PIPELINES.seo.label}
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {inboxLeads.length === 0 ? (
@@ -61,7 +105,7 @@ export default function NewLeadsPage({
         <ul className="new-leads-list">
           {inboxLeads.map((lead) => {
             const title = lead.company_name || lead.prospect_name || 'Bez nazwy';
-            const isBusy = busyId === lead.id;
+            const isBusy = anyBusy && (bulkBusy || busyId === lead.id);
             return (
               <li key={lead.id} className="new-leads-item">
                 <button

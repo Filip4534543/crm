@@ -221,6 +221,12 @@ export default function App() {
     if (selectedLead?.id === id) setSelectedLead(null);
   }
 
+  async function handleAssignAllInbox(pipeline) {
+    await api.assignAllInboxPipeline(pipeline);
+    await refresh();
+    setSelectedLead(null);
+  }
+
   function toggleCallTimer() {
     setCallTimer((current) => {
       const today = dayKeyFromDate();
@@ -366,6 +372,7 @@ export default function App() {
           <NewLeadsPage
             leads={leadsWithMeta}
             onAssignPipeline={handleAssignPipeline}
+            onAssignAllInbox={handleAssignAllInbox}
             onLeadClick={(lead) => setSelectedLead(lead)}
             onDeleteLead={async (id) => {
               await api.deleteLead(id);

@@ -307,6 +307,37 @@ async function assignLeadToPipeline(id, targetPipeline) {
   return getLeadById(id);
 }
 
+async function assignAllInboxToPipeline(targetPipeline) {
+  if (!ASSIGNABLE_PIPELINES.includes(targetPipeline)) {
+    throw new Error('Invalid pipeline');
+  }
+  const data = await loadData();
+  const ids = data.leads
+    .filter((l) => (l.pipeline || 'websites') === 'inbox')
+    .map((l) => l.id);
+  let moved = 0;
+  for (const id of ids) {
+    const lead = data.leads.find((l) => l.id === id);
+    if (!lead || lead.pipeline !== 'inbox') continue;
+    const fromStage = lead.stage;
+    const label = PIPELINE_LABELS[targetPipeline] || targetPipeline;
+    lead.pipeline = targetPipeline;
+    lead.stage = 'not_contacted_yet';
+    lead.updated_at = now();
+    data.history.push({
+      id: data.nextHistoryId++,
+      lead_id: id,
+      from_stage: fromStage,
+      to_stage: 'not_contacted_yet',
+      description: `Przeniesiono do pipeline ${label} (Not contacted yet)`,
+      created_at: now(),
+    });
+    moved++;
+  }
+  if (moved > 0) await saveData(data);
+  return { moved, pipeline: targetPipeline };
+}
+
 async function updateLeadFields(id, fields) {
   const data = await loadData();
   const lead = data.leads.find((l) => l.id === id);
@@ -542,6 +573,7 @@ module.exports = {
   insertLead,
   updateLeadStage,
   assignLeadToPipeline,
+  assignAllInboxToPipeline,
   updateLeadFields,
   getAllTasks,
   insertTask,

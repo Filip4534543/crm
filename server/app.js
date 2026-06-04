@@ -174,6 +174,15 @@ app.patch('/api/leads/:id(\\d+)/pipeline', authMiddleware, async (req, res) => {
   }
 });
 
+app.post('/api/leads/inbox/assign-all', authMiddleware, async (req, res) => {
+  const { pipeline } = req.body;
+  try {
+    res.json(await db.assignAllInboxToPipeline(pipeline));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.patch('/api/leads/:id(\\d+)', authMiddleware, async (req, res) => {
   const lead = await db.updateLeadFields(Number(req.params.id), req.body);
   if (!lead) return res.status(404).json({ error: 'Not found' });

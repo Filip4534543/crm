@@ -69,6 +69,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ pipeline }),
     }),
+  assignAllInboxPipeline: (pipeline) =>
+    request('/api/leads/inbox/assign-all', {
+      method: 'POST',
+      body: JSON.stringify({ pipeline }),
+    }),
   updateLead: (id, body) =>
     request(`/api/leads/${id}`, {
       method: 'PATCH',

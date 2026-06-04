@@ -1862,8 +1862,29 @@ a {
   max-width: 42rem;
 }
 
+.new-leads-header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
 .new-leads-count {
   flex-shrink: 0;
+}
+
+.new-leads-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.new-leads-bulk-label {
+  font-size: 0.75rem;
+  color: var(--muted);
 }
 
 .new-leads-empty {

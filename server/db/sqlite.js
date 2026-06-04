@@ -352,6 +352,21 @@ function assignLeadToPipeline(id, targetPipeline) {
   return getLeadById(id);
 }
 
+function assignAllInboxToPipeline(targetPipeline) {
+  if (!ASSIGNABLE_PIPELINES.includes(targetPipeline)) {
+    throw new Error('Invalid pipeline');
+  }
+  const ids = getDb()
+    .prepare("SELECT id FROM leads WHERE pipeline = 'inbox'")
+    .all()
+    .map((r) => r.id);
+  let moved = 0;
+  for (const id of ids) {
+    if (assignLeadToPipeline(id, targetPipeline)) moved++;
+  }
+  return { moved, pipeline: targetPipeline };
+}
+
 function updateLeadFields(id, fields) {
   const allowed = [
     'agreed_sum',
@@ -582,6 +597,7 @@ module.exports = {
   insertLead: wrap(insertLead),
   updateLeadStage: wrap(updateLeadStage),
   assignLeadToPipeline: wrap(assignLeadToPipeline),
+  assignAllInboxToPipeline: wrap(assignAllInboxToPipeline),
   updateLeadFields: wrap(updateLeadFields),
   getAllTasks: wrap(getAllTasks),
   insertTask: wrap(insertTask),
