@@ -14,3 +14,11 @@ export const STAGES = [
 ];
 
 export const STAGE_MAP = Object.fromEntries(STAGES.map((s) => [s.id, s]));
+
+export const PIPELINES = {
+  inbox: { id: 'inbox', label: 'Nowe leady' },
+  websites: { id: 'websites', label: 'Websites' },
+  seo: { id: 'seo', label: 'SEO' },
+};
+
+export const ASSIGNABLE_PIPELINES = ['websites', 'seo'];

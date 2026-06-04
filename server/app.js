@@ -163,6 +163,17 @@ app.patch('/api/leads/:id(\\d+)/stage', authMiddleware, async (req, res) => {
   }
 });
 
+app.patch('/api/leads/:id(\\d+)/pipeline', authMiddleware, async (req, res) => {
+  const { pipeline } = req.body;
+  try {
+    const lead = await db.assignLeadToPipeline(Number(req.params.id), pipeline);
+    if (!lead) return res.status(404).json({ error: 'Not found' });
+    res.json(lead);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.patch('/api/leads/:id(\\d+)', authMiddleware, async (req, res) => {
   const lead = await db.updateLeadFields(Number(req.params.id), req.body);
   if (!lead) return res.status(404).json({ error: 'Not found' });
@@ -196,7 +207,8 @@ app.delete(
   authMiddleware,
   async (req, res) => {
     try {
-      res.json(await db.deleteAllLeadsInStage('not_contacted_yet'));
+      const pipeline = req.query.pipeline || 'websites';
+      res.json(await db.deleteAllLeadsInStage('not_contacted_yet', pipeline));
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
@@ -208,7 +220,8 @@ app.post(
   authMiddleware,
   async (req, res) => {
     try {
-      res.json(await db.deleteDuplicateLeadsInStage('not_contacted_yet'));
+      const pipeline = req.query.pipeline || 'websites';
+      res.json(await db.deleteDuplicateLeadsInStage('not_contacted_yet', pipeline));
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
@@ -216,7 +229,8 @@ app.post(
 );
 
 app.get('/api/stats', authMiddleware, async (req, res) => {
-  res.json(await db.getStageCounts());
+  const pipeline = req.query.pipeline || null;
+  res.json(await db.getStageCounts(pipeline));
 });
 
 app.get('/api/tasks', authMiddleware, async (req, res) => {

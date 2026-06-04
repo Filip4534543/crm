@@ -64,6 +64,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  assignPipeline: (id, pipeline) =>
+    request(`/api/leads/${id}/pipeline`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pipeline }),
+    }),
   updateLead: (id, body) =>
     request(`/api/leads/${id}`, {
       method: 'PATCH',
@@ -74,10 +79,16 @@ export const api = {
     request(`/api/leads/deleted/${deletedId}/restore`, { method: 'POST' }),
   deleteDeletedLead: (deletedId) =>
     request(`/api/leads/deleted/${deletedId}`, { method: 'DELETE' }),
-  deleteAllNotContacted: () =>
-    request('/api/leads/stage/not_contacted_yet', { method: 'DELETE' }),
-  removeDuplicatesNotContacted: () =>
-    request('/api/leads/stage/not_contacted_yet/dedupe', { method: 'POST' }),
+  deleteAllNotContacted: (pipeline = 'websites') =>
+    request(
+      `/api/leads/stage/not_contacted_yet?pipeline=${encodeURIComponent(pipeline)}`,
+      { method: 'DELETE' }
+    ),
+  removeDuplicatesNotContacted: (pipeline = 'websites') =>
+    request(
+      `/api/leads/stage/not_contacted_yet/dedupe?pipeline=${encodeURIComponent(pipeline)}`,
+      { method: 'POST' }
+    ),
   getTasks: () => request('/api/tasks'),
   createTask: (body) =>
     request('/api/tasks', { method: 'POST', body: JSON.stringify(body) }),

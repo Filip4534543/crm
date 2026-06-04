@@ -33,7 +33,7 @@ export default function Login({ onSuccess }) {
       <form className="login-card" onSubmit={handleSubmit}>
         <img src="/logo.png" alt="Filip's CRM" className="login-logo" />
         <h1>Filip's CRM</h1>
-        <p>Pipeline sprzedażowy</p>
+        <p>Websites · SEO · Nowe leady</p>
         {error && <p className="login-error">{error}</p>}
         <input
           type="password"

@@ -188,7 +188,9 @@ export default function ApiPage({ onWebhookSuccess }) {
         <h2>Dodawanie leada (n8n)</h2>
         <p className="api-hint">
           Węzeł <strong>HTTP Request</strong> → metoda <strong>POST</strong> na URL webhooka
-          leadów. Lead trafia do stage <em>Not contacted yet</em>.
+          leadów. Lead trafia do zakładki <strong>Nowe leady</strong> (inbox). Stamtąd
+          przypisujesz go do pipeline <em>Websites</em> lub <em>SEO</em> — oba startują w
+          stage <em>Not contacted yet</em>.
         </p>
         <div className="api-url-box">
           <code>{form.leadsWebhook}</code>

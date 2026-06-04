@@ -198,6 +198,23 @@ a {
   border: 1px solid var(--accent);
 }
 
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tab-badge {
+  min-width: 1.1rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1.2;
+  background: var(--accent);
+  color: #fff;
+}
+
 .header-actions {
   display: flex;
   gap: 0.75rem;
@@ -1817,5 +1834,121 @@ a {
 
   .deleted-item-actions {
     justify-content: flex-start;
+  }
+}
+
+.new-leads-page {
+  padding: 1.25rem 1.5rem;
+  overflow: auto;
+  height: 100%;
+}
+
+.new-leads-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.new-leads-header h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.35rem;
+}
+
+.new-leads-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  max-width: 42rem;
+}
+
+.new-leads-count {
+  flex-shrink: 0;
+}
+
+.new-leads-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.new-leads-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.new-leads-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+
+.new-leads-item-main {
+  flex: 1;
+  min-width: 200px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--text);
+}
+
+.new-leads-item-main:hover h3 {
+  color: var(--accent);
+}
+
+.new-leads-item-main h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.15rem;
+}
+
+.new-leads-item-main span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.new-leads-meta {
+  margin-top: 0.25rem;
+}
+
+.new-leads-desc {
+  font-style: italic;
+}
+
+.new-leads-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.new-leads-btn-seo {
+  border-color: #22c55e66;
+}
+
+.btn-danger-ghost:hover {
+  border-color: #f43f5e;
+  color: #f43f5e;
+}
+
+@media (max-width: 720px) {
+  .new-leads-item {
+    flex-direction: column;
+  }
+
+  .new-leads-actions {
+    width: 100%;
+  }
+
+  .new-leads-actions button {
+    flex: 1;
+    min-width: 140px;
   }
 }

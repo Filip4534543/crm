@@ -28,4 +28,20 @@ const STAGE_LABELS = {
   lost: 'Lost',
 };
 
-module.exports = { STAGES, STAGE_LABELS };
+const PIPELINES = ['inbox', 'websites', 'seo'];
+
+const PIPELINE_LABELS = {
+  inbox: 'Nowe leady',
+  websites: 'Websites',
+  seo: 'SEO',
+};
+
+const ASSIGNABLE_PIPELINES = ['websites', 'seo'];
+
+module.exports = {
+  STAGES,
+  STAGE_LABELS,
+  PIPELINES,
+  PIPELINE_LABELS,
+  ASSIGNABLE_PIPELINES,
+};

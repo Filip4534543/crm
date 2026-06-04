@@ -1,5 +1,10 @@
 const { getStore } = require('@netlify/blobs');
-const { STAGES, STAGE_LABELS } = require('../constants');
+const {
+  STAGES,
+  STAGE_LABELS,
+  PIPELINE_LABELS,
+  ASSIGNABLE_PIPELINES,
+} = require('../constants');
 const { sortActiveTasks } = require('./sortTasks');
 const {
   findBestDuplicateMatch,
@@ -41,12 +46,33 @@ function getStoreInstance() {
   return getStore(opts);
 }
 
+function migrateLeadPipelines(data) {
+  let changed = false;
+  for (const lead of data.leads || []) {
+    if (!lead.pipeline) {
+      lead.pipeline = 'websites';
+      changed = true;
+    }
+  }
+  for (const row of data.deleted_leads || []) {
+    if (!row.pipeline) {
+      row.pipeline = 'websites';
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 async function loadData() {
   const store = getStoreInstance();
   const raw = await store.get(DATA_KEY, { type: 'text' });
   if (!raw) return emptyData();
   try {
-    return { ...emptyData(), ...JSON.parse(raw) };
+    const data = { ...emptyData(), ...JSON.parse(raw) };
+    if (migrateLeadPipelines(data)) {
+      await saveData(data);
+    }
+    return data;
   } catch {
     return emptyData();
   }
@@ -66,6 +92,8 @@ function mapLeadRow(data, row) {
     history.find((h) => h.description)?.description ?? null;
   return {
     ...row,
+    pipeline: row.pipeline || 'websites',
+    pipeline_label: PIPELINE_LABELS[row.pipeline] || row.pipeline || 'Websites',
     stage_label: STAGE_LABELS[row.stage] || row.stage,
     last_description: lastDescription,
     history,
@@ -102,10 +130,15 @@ async function getLeadById(id) {
   return mapLeadRow(data, row);
 }
 
-async function getStageCounts() {
+async function getStageCounts(pipeline) {
   const data = await loadData();
   const counts = Object.fromEntries(STAGES.map((s) => [s, 0]));
   for (const lead of data.leads) {
+    if (pipeline) {
+      if ((lead.pipeline || 'websites') !== pipeline) continue;
+    } else if ((lead.pipeline || 'websites') === 'inbox') {
+      continue;
+    }
     if (counts[lead.stage] !== undefined) counts[lead.stage]++;
   }
   return STAGES.map((stage) => ({
@@ -180,6 +213,8 @@ async function insertLead(payload, options = {}) {
   const initialDescription =
     leadInput.initial_description ||
     (options.source === 'manual' ? 'Lead dodany ręcznie' : 'Nowy lead z n8n');
+  const pipeline =
+    options.pipeline || (options.source === 'manual' ? 'websites' : 'inbox');
   const lead = {
     id: data.nextLeadId++,
     company_name: leadInput.company_name,
@@ -193,6 +228,7 @@ async function insertLead(payload, options = {}) {
     contact_name: leadInput.contact_name,
     prospect_name: leadInput.prospect_name,
     stage: 'not_contacted_yet',
+    pipeline,
     agreed_sum: null,
     earnings: null,
     created_at: ts,
@@ -234,6 +270,36 @@ async function updateLeadStage(id, toStage, description, agreedSum) {
     from_stage: fromStage,
     to_stage: toStage,
     description: description || null,
+    created_at: now(),
+  });
+
+  await saveData(data);
+  return getLeadById(id);
+}
+
+async function assignLeadToPipeline(id, targetPipeline) {
+  if (!ASSIGNABLE_PIPELINES.includes(targetPipeline)) {
+    throw new Error('Invalid pipeline');
+  }
+  const data = await loadData();
+  const lead = data.leads.find((l) => l.id === id);
+  if (!lead) return null;
+  if (lead.pipeline !== 'inbox') {
+    throw new Error('Przenosienie dozwolone tylko z zakładki Nowe leady');
+  }
+
+  const fromStage = lead.stage;
+  const label = PIPELINE_LABELS[targetPipeline] || targetPipeline;
+  lead.pipeline = targetPipeline;
+  lead.stage = 'not_contacted_yet';
+  lead.updated_at = now();
+
+  data.history.push({
+    id: data.nextHistoryId++,
+    lead_id: id,
+    from_stage: fromStage,
+    to_stage: 'not_contacted_yet',
+    description: `Przeniesiono do pipeline ${label} (Not contacted yet)`,
     created_at: now(),
   });
 
@@ -378,20 +444,26 @@ function deleteLeadIdsFromData(data, ids) {
   return deleted;
 }
 
-async function deleteAllLeadsInStage(stage) {
+async function deleteAllLeadsInStage(stage, pipeline = 'websites') {
   assertBulkStage(stage);
   const data = await loadData();
-  const ids = data.leads.filter((l) => l.stage === stage).map((l) => l.id);
+  const ids = data.leads
+    .filter((l) => l.stage === stage && (l.pipeline || 'websites') === pipeline)
+    .map((l) => l.id);
   const deleted = deleteLeadIdsFromData(data, ids);
   if (deleted > 0) await saveData(data);
-  return { deleted, stage };
+  return { deleted, stage, pipeline };
 }
 
-async function deleteDuplicateLeadsInStage(stage) {
+async function deleteDuplicateLeadsInStage(stage, pipeline = 'websites') {
   assertBulkStage(stage);
   const data = await loadData();
-  const leads = data.leads.filter((l) => l.stage === stage);
-  const activeOutsideScope = data.leads.filter((l) => l.stage !== stage);
+  const leads = data.leads.filter(
+    (l) => l.stage === stage && (l.pipeline || 'websites') === pipeline
+  );
+  const activeOutsideScope = data.leads.filter(
+    (l) => l.stage !== stage || (l.pipeline || 'websites') !== pipeline
+  );
   const ids = duplicateIdsToRemoveForStage({
     scopedLeads: leads,
     activeLeadsOutsideScope: activeOutsideScope,
@@ -399,7 +471,7 @@ async function deleteDuplicateLeadsInStage(stage) {
   });
   const deleted = deleteLeadIdsFromData(data, ids);
   if (deleted > 0) await saveData(data);
-  return { deleted, stage, groupsAffected: ids.length };
+  return { deleted, stage, pipeline, groupsAffected: ids.length };
 }
 
 async function restoreDeletedLead(deletedId) {
@@ -431,6 +503,7 @@ async function restoreDeletedLead(deletedId) {
     contact_name: row.contact_name,
     prospect_name: row.prospect_name,
     stage: row.stage || 'not_contacted_yet',
+    pipeline: row.pipeline || 'websites',
     agreed_sum: row.agreed_sum ?? null,
     earnings: row.earnings ?? null,
     created_at: row.created_at || ts,
@@ -468,6 +541,7 @@ module.exports = {
   getStageCounts,
   insertLead,
   updateLeadStage,
+  assignLeadToPipeline,
   updateLeadFields,
   getAllTasks,
   insertTask,

@@ -1,6 +1,11 @@
 const path = require('path');
 const fs = require('fs');
-const { STAGES, STAGE_LABELS } = require('../constants');
+const {
+  STAGES,
+  STAGE_LABELS,
+  PIPELINE_LABELS,
+  ASSIGNABLE_PIPELINES,
+} = require('../constants');
 const { sortActiveTasks } = require('./sortTasks');
 const {
   duplicateIdsToRemoveForStage,
@@ -30,6 +35,7 @@ function getDb() {
     contact_name TEXT,
     prospect_name TEXT,
     stage TEXT NOT NULL DEFAULT 'not_contacted_yet',
+    pipeline TEXT NOT NULL DEFAULT 'websites',
     agreed_sum REAL,
     earnings REAL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -69,6 +75,7 @@ function getDb() {
     contact_name TEXT,
     prospect_name TEXT,
     stage TEXT,
+    pipeline TEXT,
     agreed_sum REAL,
     earnings REAL,
     created_at TEXT,
@@ -77,6 +84,7 @@ function getDb() {
   );
 
   CREATE INDEX IF NOT EXISTS idx_leads_stage ON leads(stage);
+  CREATE INDEX IF NOT EXISTS idx_leads_pipeline ON leads(pipeline);
   CREATE INDEX IF NOT EXISTS idx_history_lead ON stage_history(lead_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_stack ON tasks(done, stack_position);
   CREATE INDEX IF NOT EXISTS idx_deleted_leads_deleted_at ON deleted_leads(deleted_at);
@@ -86,12 +94,30 @@ function getDb() {
 }
 
 function migrateSchema(database) {
-  const cols = database.prepare('PRAGMA table_info(tasks)').all().map((c) => c.name);
-  if (!cols.includes('due_date')) {
+  const taskCols = database.prepare('PRAGMA table_info(tasks)').all().map((c) => c.name);
+  if (!taskCols.includes('due_date')) {
     database.exec('ALTER TABLE tasks ADD COLUMN due_date TEXT');
   }
-  if (!cols.includes('lead_id')) {
+  if (!taskCols.includes('lead_id')) {
     database.exec('ALTER TABLE tasks ADD COLUMN lead_id INTEGER');
+  }
+
+  const leadCols = database.prepare('PRAGMA table_info(leads)').all().map((c) => c.name);
+  if (!leadCols.includes('pipeline')) {
+    database.exec(
+      "ALTER TABLE leads ADD COLUMN pipeline TEXT NOT NULL DEFAULT 'websites'"
+    );
+    database.exec("UPDATE leads SET pipeline = 'websites' WHERE pipeline IS NULL");
+  }
+
+  const deletedCols = database
+    .prepare('PRAGMA table_info(deleted_leads)')
+    .all()
+    .map((c) => c.name);
+  if (!deletedCols.includes('pipeline')) {
+    database.exec(
+      "ALTER TABLE deleted_leads ADD COLUMN pipeline TEXT DEFAULT 'websites'"
+    );
   }
 }
 
@@ -107,6 +133,8 @@ function mapLeadRow(row) {
     history.find((h) => h.description)?.description ?? null;
   return {
     ...row,
+    pipeline: row.pipeline || 'websites',
+    pipeline_label: PIPELINE_LABELS[row.pipeline] || row.pipeline || 'Websites',
     stage_label: STAGE_LABELS[row.stage] || row.stage,
     last_description: lastDescription,
     history,
@@ -135,11 +163,17 @@ function getDeletedLeads() {
     }));
 }
 
-function getStageCounts() {
+function getStageCounts(pipeline) {
   const counts = Object.fromEntries(STAGES.map((s) => [s, 0]));
-  const rows = getDb()
-    .prepare('SELECT stage, COUNT(*) as count FROM leads GROUP BY stage')
-    .all();
+  const rows = pipeline
+    ? getDb()
+        .prepare('SELECT stage, COUNT(*) as count FROM leads WHERE pipeline = ? GROUP BY stage')
+        .all(pipeline)
+    : getDb()
+        .prepare(
+          `SELECT stage, COUNT(*) as count FROM leads WHERE pipeline != 'inbox' GROUP BY stage`
+        )
+        .all();
   for (const { stage, count } of rows) {
     if (counts[stage] !== undefined) counts[stage] = count;
   }
@@ -213,14 +247,17 @@ function insertLead(data, options = {}) {
   const initialDescription =
     lead.initial_description ||
     (options.source === 'manual' ? 'Lead dodany ręcznie' : 'Nowy lead z n8n');
+  const pipeline =
+    options.pipeline || (options.source === 'manual' ? 'websites' : 'inbox');
   const result = getDb()
     .prepare(
       `INSERT INTO leads (
       company_name, maps_url, phone, address, website,
-      rating, rating_count, processed, contact_name, prospect_name, stage
+      rating, rating_count, processed, contact_name, prospect_name, stage, pipeline
     ) VALUES (
       @company_name, @maps_url, @phone, @address, @website,
-      @rating, @rating_count, @processed, @contact_name, @prospect_name, 'not_contacted_yet'
+      @rating, @rating_count, @processed, @contact_name, @prospect_name,
+      'not_contacted_yet', @pipeline
     )`
     )
     .run({
@@ -234,6 +271,7 @@ function insertLead(data, options = {}) {
       processed: lead.processed,
       contact_name: lead.contact_name,
       prospect_name: lead.prospect_name,
+      pipeline,
     });
   const leadId = result.lastInsertRowid;
   getDb()
@@ -278,6 +316,38 @@ function updateLeadStage(id, toStage, description, agreedSum) {
      VALUES (?, ?, ?, ?)`
     )
     .run(id, lead.stage, toStage, description || null);
+
+  return getLeadById(id);
+}
+
+function assignLeadToPipeline(id, targetPipeline) {
+  if (!ASSIGNABLE_PIPELINES.includes(targetPipeline)) {
+    throw new Error('Invalid pipeline');
+  }
+  const lead = getDb().prepare('SELECT * FROM leads WHERE id = ?').get(id);
+  if (!lead) return null;
+  if (lead.pipeline !== 'inbox') {
+    throw new Error('Przenoszenie dozwolone tylko z zakładki Nowe leady');
+  }
+
+  const label = PIPELINE_LABELS[targetPipeline] || targetPipeline;
+  getDb()
+    .prepare(
+      `UPDATE leads SET pipeline = @pipeline, stage = 'not_contacted_yet',
+       updated_at = datetime('now') WHERE id = @id`
+    )
+    .run({ id, pipeline: targetPipeline });
+
+  getDb()
+    .prepare(
+      `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
+     VALUES (?, ?, 'not_contacted_yet', ?)`
+    )
+    .run(
+      id,
+      lead.stage,
+      `Przeniesiono do pipeline ${label} (Not contacted yet)`
+    );
 
   return getLeadById(id);
 }
@@ -399,12 +469,12 @@ function deleteLeadIds(ids) {
       `INSERT INTO deleted_leads (
         original_id, company_name, maps_url, phone, address, website,
         rating, rating_count, processed, contact_name, prospect_name,
-        stage, agreed_sum, earnings, created_at, updated_at, deleted_at
+        stage, pipeline, agreed_sum, earnings, created_at, updated_at, deleted_at
       )
       SELECT
         id, company_name, maps_url, phone, address, website,
         rating, rating_count, processed, contact_name, prospect_name,
-        stage, agreed_sum, earnings, created_at, updated_at, datetime('now')
+        stage, pipeline, agreed_sum, earnings, created_at, updated_at, datetime('now')
       FROM leads WHERE id IN (${placeholders})`
     ).run(...leadIds);
     d.prepare(`DELETE FROM tasks WHERE lead_id IN (${placeholders})`).run(...leadIds);
@@ -414,20 +484,24 @@ function deleteLeadIds(ids) {
   })(uniqueIds);
 }
 
-function deleteAllLeadsInStage(stage) {
+function deleteAllLeadsInStage(stage, pipeline = 'websites') {
   assertBulkStage(stage);
   const ids = getDb()
-    .prepare('SELECT id FROM leads WHERE stage = ?')
-    .all(stage)
+    .prepare('SELECT id FROM leads WHERE stage = ? AND pipeline = ?')
+    .all(stage, pipeline)
     .map((r) => r.id);
   const deleted = deleteLeadIds(ids);
-  return { deleted, stage };
+  return { deleted, stage, pipeline };
 }
 
-function deleteDuplicateLeadsInStage(stage) {
+function deleteDuplicateLeadsInStage(stage, pipeline = 'websites') {
   assertBulkStage(stage);
-  const leads = getDb().prepare('SELECT * FROM leads WHERE stage = ?').all(stage);
-  const activeOutsideScope = getDb().prepare('SELECT * FROM leads WHERE stage != ?').all(stage);
+  const leads = getDb()
+    .prepare('SELECT * FROM leads WHERE stage = ? AND pipeline = ?')
+    .all(stage, pipeline);
+  const activeOutsideScope = getDb()
+    .prepare('SELECT * FROM leads WHERE stage != ? OR pipeline != ?')
+    .all(stage, pipeline);
   const deletedLeads = getDb().prepare('SELECT * FROM deleted_leads').all();
   const ids = duplicateIdsToRemoveForStage({
     scopedLeads: leads,
@@ -435,7 +509,7 @@ function deleteDuplicateLeadsInStage(stage) {
     deletedLeads,
   });
   const deleted = deleteLeadIds(ids);
-  return { deleted, stage, groupsAffected: ids.length };
+  return { deleted, stage, pipeline, groupsAffected: ids.length };
 }
 
 function restoreDeletedLead(deletedId) {
@@ -457,11 +531,11 @@ function restoreDeletedLead(deletedId) {
       `INSERT INTO leads (
       company_name, maps_url, phone, address, website,
       rating, rating_count, processed, contact_name, prospect_name,
-      stage, agreed_sum, earnings, created_at, updated_at
+      stage, pipeline, agreed_sum, earnings, created_at, updated_at
     ) VALUES (
       @company_name, @maps_url, @phone, @address, @website,
       @rating, @rating_count, @processed, @contact_name, @prospect_name,
-      @stage, @agreed_sum, @earnings, @created_at, datetime('now')
+      @stage, @pipeline, @agreed_sum, @earnings, @created_at, datetime('now')
     )`
     )
     .run({
@@ -476,6 +550,7 @@ function restoreDeletedLead(deletedId) {
       contact_name: row.contact_name,
       prospect_name: row.prospect_name,
       stage: row.stage || 'not_contacted_yet',
+      pipeline: row.pipeline || 'websites',
       agreed_sum: row.agreed_sum ?? null,
       earnings: row.earnings ?? null,
       created_at: row.created_at || row.deleted_at || null,
@@ -506,6 +581,7 @@ module.exports = {
   getStageCounts: wrap(getStageCounts),
   insertLead: wrap(insertLead),
   updateLeadStage: wrap(updateLeadStage),
+  assignLeadToPipeline: wrap(assignLeadToPipeline),
   updateLeadFields: wrap(updateLeadFields),
   getAllTasks: wrap(getAllTasks),
   insertTask: wrap(insertTask),

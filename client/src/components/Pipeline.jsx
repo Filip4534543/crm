@@ -75,6 +75,7 @@ function resolveDropStage(overId) {
 }
 
 export default function Pipeline({
+  pipeline = 'websites',
   leads,
   tasks,
   todayStats,
@@ -83,6 +84,9 @@ export default function Pipeline({
   onDeleteAllNotContacted,
   onRemoveDuplicatesNotContacted,
 }) {
+  const pipelineLeads = leads.filter(
+    (lead) => (lead.pipeline || 'websites') === pipeline
+  );
   const [activeLead, setActiveLead] = useState(null);
   const [pendingMove, setPendingMove] = useState(null);
   const [didDrag, setDidDrag] = useState(false);
@@ -99,7 +103,7 @@ export default function Pipeline({
 
   const byStage = Object.fromEntries(STAGES.map((s) => [s.id, []]));
   const counts = Object.fromEntries(STAGES.map((s) => [s.id, 0]));
-  for (const lead of leads) {
+  for (const lead of pipelineLeads) {
     if (byStage[lead.stage]) {
       byStage[lead.stage].push(lead);
       counts[lead.stage]++;
@@ -209,7 +213,7 @@ export default function Pipeline({
         window.alert('Nie znaleziono duplikatów do usunięcia.');
       }
       if (selectedLead?.stage === 'not_contacted_yet') {
-        const still = leads.find((l) => l.id === selectedLead.id);
+        const still = pipelineLeads.find((l) => l.id === selectedLead.id);
         if (!still) setSelectedLead(null);
       }
     } finally {
@@ -222,7 +226,7 @@ export default function Pipeline({
     const { lead, toStage } = pendingMove;
     setPendingMove(null);
     await onMoveStage(lead.id, { stage: toStage, description, agreed_sum, task });
-    const updated = leads.find((l) => l.id === lead.id);
+    const updated = pipelineLeads.find((l) => l.id === lead.id);
     if (updated) setSelectedLead({ ...updated, stage: toStage });
     else setSelectedLead(null);
   }

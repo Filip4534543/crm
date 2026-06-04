@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api, getToken, clearToken } from './api';
 import Login from './components/Login';
 import Pipeline from './components/Pipeline';
+import NewLeadsPage from './components/NewLeadsPage';
 import StatsPage from './components/StatsPage';
 import TasksPage from './components/TasksPage';
 import ApiPage from './components/ApiPage';
@@ -74,7 +75,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState([]);
-  const [tab, setTab] = useState('pipeline');
+  const [tab, setTab] = useState('websites');
   const [tasks, setTasks] = useState({ active: [], done: [] });
   const [deletedLeads, setDeletedLeads] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
@@ -104,6 +105,10 @@ export default function App() {
     if (!started) return base;
     return base + Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000));
   }, [callTimer, timerTick]);
+  const inboxCount = useMemo(
+    () => leads.filter((l) => (l.pipeline || 'websites') === 'inbox').length,
+    [leads]
+  );
   const nextContactStats = useMemo(() => {
     const today = dayKeyFromDate();
     const planned = (tasks?.active || []).filter(
@@ -210,6 +215,12 @@ export default function App() {
     setShowManualLeadModal(false);
   }
 
+  async function handleAssignPipeline(id, pipeline) {
+    await api.assignPipeline(id, pipeline);
+    await refresh();
+    if (selectedLead?.id === id) setSelectedLead(null);
+  }
+
   function toggleCallTimer() {
     setCallTimer((current) => {
       const today = dayKeyFromDate();
@@ -256,10 +267,27 @@ export default function App() {
         <nav className="app-tabs">
           <button
             type="button"
-            className={`tab-btn${tab === 'pipeline' ? ' active' : ''}`}
-            onClick={() => setTab('pipeline')}
+            className={`tab-btn${tab === 'new_leads' ? ' active' : ''}`}
+            onClick={() => setTab('new_leads')}
           >
-            Pipeline
+            Nowe leady
+            {inboxCount > 0 && (
+              <span className="tab-badge">{inboxCount}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className={`tab-btn${tab === 'websites' ? ' active' : ''}`}
+            onClick={() => setTab('websites')}
+          >
+            Websites
+          </button>
+          <button
+            type="button"
+            className={`tab-btn${tab === 'seo' ? ' active' : ''}`}
+            onClick={() => setTab('seo')}
+          >
+            SEO
           </button>
           <button
             type="button"
@@ -334,9 +362,22 @@ export default function App() {
       </header>
 
       <main className="app-main">
-        {tab === 'pipeline' && (
+        {tab === 'new_leads' && (
+          <NewLeadsPage
+            leads={leadsWithMeta}
+            onAssignPipeline={handleAssignPipeline}
+            onLeadClick={(lead) => setSelectedLead(lead)}
+            onDeleteLead={async (id) => {
+              await api.deleteLead(id);
+              if (selectedLead?.id === id) setSelectedLead(null);
+              await refresh();
+            }}
+          />
+        )}
+        {(tab === 'websites' || tab === 'seo') && (
           <div className="pipeline-wrap">
             <Pipeline
+              pipeline={tab}
               leads={leadsWithMeta}
               tasks={tasks}
               todayStats={{
@@ -346,12 +387,12 @@ export default function App() {
               onMoveStage={handleMoveStage}
               onLeadClick={(lead) => setSelectedLead(lead)}
               onDeleteAllNotContacted={async () => {
-                await api.deleteAllNotContacted();
+                await api.deleteAllNotContacted(tab);
                 setSelectedLead(null);
                 await refresh();
               }}
               onRemoveDuplicatesNotContacted={async () => {
-                const result = await api.removeDuplicatesNotContacted();
+                const result = await api.removeDuplicatesNotContacted(tab);
                 await refresh();
                 return result;
               }}
