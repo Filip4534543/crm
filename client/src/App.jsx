@@ -13,6 +13,7 @@ import { buildActivityStats } from './utils/activityStats';
 
 const THEME_KEY = 'filips-crm-theme';
 const CALL_TIMER_KEY = 'filips-crm-call-timer-v1';
+const MEETINGS_TODAY_KEY = 'filips-crm-meetings-today-v1';
 
 function getInitialTheme() {
   try {
@@ -36,6 +37,17 @@ function dayKeyFromDate(date = new Date()) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function loadMeetingsTodayState() {
+  try {
+    const raw = localStorage.getItem(MEETINGS_TODAY_KEY);
+    if (!raw) return { dayTotals: {} };
+    const parsed = JSON.parse(raw);
+    return { dayTotals: parsed?.dayTotals || {} };
+  } catch {
+    return { dayTotals: {} };
+  }
 }
 
 function loadCallTimerState() {
@@ -82,6 +94,7 @@ export default function App() {
   const [showManualLeadModal, setShowManualLeadModal] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
   const [callTimer, setCallTimer] = useState(loadCallTimerState);
+  const [meetingsToday, setMeetingsToday] = useState(loadMeetingsTodayState);
   const [timerTick, setTimerTick] = useState(0);
   const allTasks = useMemo(() => [...(tasks?.active || []), ...(tasks?.done || [])], [tasks]);
   const leadsWithMeta = useMemo(() => {
@@ -96,7 +109,14 @@ export default function App() {
       last_contact_at: resolveLeadLastContact(lead, tasksByLead),
     }));
   }, [leads, allTasks]);
-  const activityStats = useMemo(() => buildActivityStats(leadsWithMeta), [leadsWithMeta]);
+  const activityStats = useMemo(
+    () => buildActivityStats(leadsWithMeta, { meetingsTodayByDay: meetingsToday.dayTotals }),
+    [leadsWithMeta, meetingsToday.dayTotals]
+  );
+  const meetingsTodayCount = useMemo(() => {
+    const day = dayKeyFromDate();
+    return Number(meetingsToday.dayTotals?.[day] || 0);
+  }, [meetingsToday.dayTotals]);
   const callSecondsToday = useMemo(() => {
     const day = dayKeyFromDate();
     const base = Number(callTimer.dayTotals?.[day] || 0);
@@ -138,6 +158,14 @@ export default function App() {
       /* ignore */
     }
   }, [callTimer]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MEETINGS_TODAY_KEY, JSON.stringify(meetingsToday));
+    } catch {
+      /* ignore */
+    }
+  }, [meetingsToday]);
 
   useEffect(() => {
     if (!callTimer.runningSince) return undefined;
@@ -225,6 +253,16 @@ export default function App() {
     await api.assignAllInboxPipeline(pipeline);
     await refresh();
     setSelectedLead(null);
+  }
+
+  function adjustMeetingsToday(delta) {
+    setMeetingsToday((current) => {
+      const today = dayKeyFromDate();
+      const dayTotals = { ...(current.dayTotals || {}) };
+      const next = Math.max(0, Number(dayTotals[today] || 0) + delta);
+      dayTotals[today] = next;
+      return { ...current, dayTotals };
+    });
   }
 
   function toggleCallTimer() {
@@ -390,6 +428,7 @@ export default function App() {
               todayStats={{
                 ...activityStats.today,
                 callMinutes: Math.floor(callSecondsToday / 60),
+                meetingsToday: meetingsTodayCount,
               }}
               onMoveStage={handleMoveStage}
               onLeadClick={(lead) => setSelectedLead(lead)}
@@ -415,6 +454,8 @@ export default function App() {
             callSecondsToday={callSecondsToday}
             callTimerRunning={Boolean(callTimer.runningSince)}
             onToggleCallTimer={toggleCallTimer}
+            meetingsToday={meetingsTodayCount}
+            onAdjustMeetingsToday={adjustMeetingsToday}
             nextContactStats={nextContactStats}
           />
         )}

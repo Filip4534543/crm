@@ -1,5 +1,10 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** Statystyki liczone od tej daty (włącznie). */
+export const ACTIVITY_STATS_START = '2026-06-07';
+
+const MEETING_BOOKED_STAGES = new Set(['meeting_booked', 'interested_in_demo']);
+
 function pad(value) {
   return String(value).padStart(2, '0');
 }
@@ -43,21 +48,20 @@ export function formatDayLabel(dayKey, options = {}) {
 
 function createBucket() {
   return {
-    firstContact: new Set(),
-    interestedInDemo: new Set(),
-    demoSent: new Set(),
+    contacts: new Set(),
+    meetingsBooked: new Set(),
   };
 }
 
-function countBucket(bucket) {
+function countBucket(bucket, meetingsToday = 0) {
   return {
-    firstContact: bucket.firstContact.size,
-    interestedInDemo: bucket.interestedInDemo.size,
-    demoSent: bucket.demoSent.size,
+    contacts: bucket.contacts.size,
+    meetingsBooked: bucket.meetingsBooked.size,
+    meetingsToday,
   };
 }
 
-export function buildActivityStats(leads = []) {
+export function buildActivityStats(leads = [], { meetingsTodayByDay = {} } = {}) {
   const buckets = new Map();
 
   for (const lead of leads) {
@@ -66,6 +70,8 @@ export function buildActivityStats(leads = []) {
       if (!createdAt) continue;
 
       const dayKey = toDayKey(createdAt);
+      if (dayKey < ACTIVITY_STATS_START) continue;
+
       let bucket = buckets.get(dayKey);
       if (!bucket) {
         bucket = createBucket();
@@ -73,60 +79,76 @@ export function buildActivityStats(leads = []) {
       }
 
       if (
-        entry.from_stage === 'not_contacted_yet' &&
+        entry.from_stage &&
         entry.to_stage &&
-        entry.to_stage !== 'not_contacted_yet'
+        entry.from_stage !== entry.to_stage
       ) {
-        bucket.firstContact.add(lead.id);
+        bucket.contacts.add(lead.id);
       }
 
-      if (entry.to_stage === 'interested_in_demo') {
-        bucket.interestedInDemo.add(lead.id);
-      }
-
-      if (entry.to_stage === 'demo_send') {
-        bucket.demoSent.add(lead.id);
+      if (entry.to_stage && MEETING_BOOKED_STAGES.has(entry.to_stage)) {
+        bucket.meetingsBooked.add(lead.id);
       }
     }
   }
 
-  const todayKey = toDayKey(new Date());
-  const metricDayKeys = Array.from(buckets.keys()).sort();
-  const minDayKey = metricDayKeys[0] ?? todayKey;
-  const maxDayKey = metricDayKeys.length
-    ? metricDayKeys[metricDayKeys.length - 1] > todayKey
-      ? metricDayKeys[metricDayKeys.length - 1]
-      : todayKey
-    : todayKey;
+  for (const dayKey of Object.keys(meetingsTodayByDay)) {
+    if (dayKey < ACTIVITY_STATS_START) continue;
+    if (!buckets.has(dayKey)) {
+      buckets.set(dayKey, createBucket());
+    }
+  }
 
+  const todayKey = toDayKey(new Date());
+  const metricDayKeys = Array.from(
+    new Set([...buckets.keys(), ...Object.keys(meetingsTodayByDay)])
+  )
+    .filter((dayKey) => dayKey >= ACTIVITY_STATS_START)
+    .sort();
+
+  const minDayKey =
+    metricDayKeys.length > 0
+      ? metricDayKeys[0]
+      : todayKey >= ACTIVITY_STATS_START
+        ? todayKey
+        : ACTIVITY_STATS_START;
+  const maxDayKey =
+    metricDayKeys.length > 0
+      ? metricDayKeys[metricDayKeys.length - 1] > todayKey
+        ? metricDayKeys[metricDayKeys.length - 1]
+        : todayKey
+      : todayKey;
+
+  const rangeStart = minDayKey >= ACTIVITY_STATS_START ? minDayKey : ACTIVITY_STATS_START;
   const totalDays =
-    Math.round((fromDayKey(maxDayKey).getTime() - fromDayKey(minDayKey).getTime()) / DAY_MS) + 1;
+    Math.round((fromDayKey(maxDayKey).getTime() - fromDayKey(rangeStart).getTime()) / DAY_MS) + 1;
 
   const timeline = [];
   for (let index = 0; index < totalDays; index += 1) {
-    const dayKey = shiftDayKey(minDayKey, index);
-    const counts = countBucket(buckets.get(dayKey) || createBucket());
+    const dayKey = shiftDayKey(rangeStart, index);
+    const meetingsToday = Number(meetingsTodayByDay[dayKey] || 0);
+    const counts = countBucket(buckets.get(dayKey) || createBucket(), meetingsToday);
     timeline.push({
       dayKey,
-      firstContact: counts.firstContact,
-      interestedInDemo: counts.interestedInDemo,
-      demoSent: counts.demoSent,
-      total: counts.firstContact + counts.interestedInDemo + counts.demoSent,
+      contacts: counts.contacts,
+      meetingsBooked: counts.meetingsBooked,
+      meetingsToday: counts.meetingsToday,
+      total: counts.contacts + counts.meetingsBooked + counts.meetingsToday,
     });
   }
 
   const today = timeline.find((item) => item.dayKey === todayKey) || {
     dayKey: todayKey,
-    firstContact: 0,
-    interestedInDemo: 0,
-    demoSent: 0,
-    total: 0,
+    contacts: 0,
+    meetingsBooked: 0,
+    meetingsToday: Number(meetingsTodayByDay[todayKey] || 0),
+    total: Number(meetingsTodayByDay[todayKey] || 0),
   };
 
   return {
     today,
     timeline,
-    minDayKey,
+    minDayKey: rangeStart,
     maxDayKey,
     hasActivity: metricDayKeys.length > 0,
   };

@@ -1202,6 +1202,29 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.manual-counter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.manual-counter.compact {
+  margin-top: 0.75rem;
+}
+
+.manual-counter strong {
+  min-width: 1.5rem;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.manual-counter .btn-ghost,
+.manual-counter .btn-primary {
+  min-width: 2rem;
+  padding: 0.35rem 0.55rem;
+}
+
 .stats-chart {
   display: flex;
   flex-direction: column;

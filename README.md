@@ -72,7 +72,7 @@ x-webhook-secret: twój-klucz
 
 ## Pipeline
 
-Stages: Not contacted yet → Missed call 1/2 → Interested in demo → Demo send → Written message send → Contact later → In process → **Win** / **Lost**.
+Stages: Not contacted yet → Missed call 1/2 → Meeting booked → After meeting → Written message send → Contact later → In process → **Win** / **Lost**.
 
 - Przeciągnij kartę na inny stage → modal z opisem i umówioną sumą.  
 - Kliknij kartę → szczegóły + historia przenoszeń.  

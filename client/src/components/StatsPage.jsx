@@ -16,26 +16,34 @@ const RANGE_PRESETS = [
 
 const ACTIVITY_METRICS = [
   {
-    key: 'firstContact',
-    label: 'Pierwszy kontakt',
-    shortLabel: '1. kontakt',
+    key: 'contacts',
+    label: 'Kontakty',
+    shortLabel: 'Kontakty',
     color: '#60a5fa',
   },
   {
-    key: 'interestedInDemo',
-    label: 'Chętny na demo',
-    shortLabel: 'Demo chętni',
+    key: 'meetingsBooked',
+    label: 'Umówione spotkania',
+    shortLabel: 'Umów. spotk.',
     color: '#d946ef',
   },
   {
-    key: 'demoSent',
-    label: 'Demo wysłane',
-    shortLabel: 'Demo wysłane',
+    key: 'meetingsToday',
+    label: 'Spotkania dziś',
+    shortLabel: 'Spotk. dziś',
     color: '#34d399',
+    manual: true,
   },
 ];
 
-const GOALS_KEY = 'filips-crm-daily-goals-v1';
+const GOALS_KEY = 'filips-crm-daily-goals-v2';
+
+const DEFAULT_GOALS = {
+  contacts: 5,
+  meetingsBooked: 2,
+  meetingsToday: 2,
+  callMinutes: 90,
+};
 
 function getDayKey(date = new Date()) {
   const y = date.getFullYear();
@@ -57,12 +65,10 @@ function formatSeconds(totalSeconds) {
 function loadGoals() {
   try {
     const raw = localStorage.getItem(GOALS_KEY);
-    if (!raw) {
-      return { firstContact: 5, interestedInDemo: 2, demoSent: 2, callMinutes: 90 };
-    }
-    return { firstContact: 5, interestedInDemo: 2, demoSent: 2, callMinutes: 90, ...JSON.parse(raw) };
+    if (!raw) return { ...DEFAULT_GOALS };
+    return { ...DEFAULT_GOALS, ...JSON.parse(raw) };
   } catch {
-    return { firstContact: 5, interestedInDemo: 2, demoSent: 2, callMinutes: 90 };
+    return { ...DEFAULT_GOALS };
   }
 }
 
@@ -204,6 +210,8 @@ export default function StatsPage({
   callSecondsToday = 0,
   callTimerRunning = false,
   onToggleCallTimer,
+  meetingsToday = 0,
+  onAdjustMeetingsToday,
   nextContactStats,
 }) {
   const [rangeKey, setRangeKey] = useState('30');
@@ -272,34 +280,35 @@ export default function StatsPage({
 
   const rangeTotals = filteredTimeline.reduce(
     (totals, item) => ({
-      firstContact: totals.firstContact + item.firstContact,
-      interestedInDemo: totals.interestedInDemo + item.interestedInDemo,
-      demoSent: totals.demoSent + item.demoSent,
+      contacts: totals.contacts + item.contacts,
+      meetingsBooked: totals.meetingsBooked + item.meetingsBooked,
+      meetingsToday: totals.meetingsToday + item.meetingsToday,
     }),
-    { firstContact: 0, interestedInDemo: 0, demoSent: 0 }
+    { contacts: 0, meetingsBooked: 0, meetingsToday: 0 }
   );
 
   const hasRangeActivity = filteredTimeline.some(
-    (item) => item.firstContact || item.interestedInDemo || item.demoSent
+    (item) => item.contacts || item.meetingsBooked || item.meetingsToday
   );
   const goalProgress = [
     {
-      key: 'firstContact',
-      label: '1. kontakt',
-      done: activityStats?.today?.firstContact ?? 0,
-      goal: Number(goals.firstContact || 0),
+      key: 'contacts',
+      label: 'Kontakty',
+      done: activityStats?.today?.contacts ?? 0,
+      goal: Number(goals.contacts || 0),
     },
     {
-      key: 'interestedInDemo',
-      label: 'Demo chętni',
-      done: activityStats?.today?.interestedInDemo ?? 0,
-      goal: Number(goals.interestedInDemo || 0),
+      key: 'meetingsBooked',
+      label: 'Umówione spotkania',
+      done: activityStats?.today?.meetingsBooked ?? 0,
+      goal: Number(goals.meetingsBooked || 0),
     },
     {
-      key: 'demoSent',
-      label: 'Demo wysłane',
-      done: activityStats?.today?.demoSent ?? 0,
-      goal: Number(goals.demoSent || 0),
+      key: 'meetingsToday',
+      label: 'Spotkania dziś',
+      done: meetingsToday,
+      goal: Number(goals.meetingsToday || 0),
+      manual: true,
     },
     {
       key: 'callMinutes',
@@ -395,6 +404,26 @@ export default function StatsPage({
                   {item.done}/{item.goal}{' '}
                   <strong>{done ? 'Cel zrealizowany' : 'W trakcie'}</strong>
                 </p>
+                {item.manual && (
+                  <div className="manual-counter">
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => onAdjustMeetingsToday?.(-1)}
+                      disabled={meetingsToday <= 0}
+                    >
+                      −
+                    </button>
+                    <strong>{meetingsToday}</strong>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => onAdjustMeetingsToday?.(1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -427,8 +456,8 @@ export default function StatsPage({
           <div>
             <h2>Aktywność dzisiaj</h2>
             <p className="stats-section-copy">
-              Każdy lead liczy się maksymalnie raz dziennie w ramach danej
-              metryki.
+              Kontakty i umówione spotkania liczone automatycznie (max 1 na leada
+              dziennie). Spotkania dziś dodajesz ręcznie.
             </p>
           </div>
         </div>
@@ -440,9 +469,30 @@ export default function StatsPage({
               style={{ '--metric-color': metric.color }}
             >
               <span className="activity-mini-value">
-                {activityStats?.today?.[metric.key] ?? 0}
+                {metric.manual
+                  ? meetingsToday
+                  : activityStats?.today?.[metric.key] ?? 0}
               </span>
               <span className="activity-mini-label">{metric.label}</span>
+              {metric.manual && (
+                <div className="manual-counter compact">
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={() => onAdjustMeetingsToday?.(-1)}
+                    disabled={meetingsToday <= 0}
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => onAdjustMeetingsToday?.(1)}
+                  >
+                    +
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -453,8 +503,8 @@ export default function StatsPage({
           <div>
             <h2>Trend aktywności</h2>
             <p className="stats-section-copy">
-              Historia zmian stage dla pierwszego kontaktu, zainteresowania demo
-              i wysłania demo.
+              Historia kontaktów, umówionych spotkań i ręcznie dodanych spotkań
+              dziennych.
             </p>
           </div>
         </div>
