@@ -3,7 +3,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Statystyki liczone od tej daty (włącznie). */
 export const ACTIVITY_STATS_START = '2026-06-07';
 
-const MEETING_BOOKED_STAGES = new Set(['meeting_booked', 'interested_in_demo']);
+const MEETING_BOOKED_STAGES = new Set(['meeting_booked']);
 
 function pad(value) {
   return String(value).padStart(2, '0');
@@ -50,6 +50,8 @@ function createBucket() {
   return {
     contacts: new Set(),
     meetingsBooked: new Set(),
+    interestedInDemo: new Set(),
+    demoSent: new Set(),
   };
 }
 
@@ -57,6 +59,8 @@ function countBucket(bucket, meetingsToday = 0) {
   return {
     contacts: bucket.contacts.size,
     meetingsBooked: bucket.meetingsBooked.size,
+    interestedInDemo: bucket.interestedInDemo.size,
+    demoSent: bucket.demoSent.size,
     meetingsToday,
   };
 }
@@ -88,6 +92,14 @@ export function buildActivityStats(leads = [], { meetingsTodayByDay = {} } = {})
 
       if (entry.to_stage && MEETING_BOOKED_STAGES.has(entry.to_stage)) {
         bucket.meetingsBooked.add(lead.id);
+      }
+
+      if (entry.to_stage === 'interested_in_demo') {
+        bucket.interestedInDemo.add(lead.id);
+      }
+
+      if (entry.to_stage === 'demo_send') {
+        bucket.demoSent.add(lead.id);
       }
     }
   }
@@ -132,8 +144,15 @@ export function buildActivityStats(leads = [], { meetingsTodayByDay = {} } = {})
       dayKey,
       contacts: counts.contacts,
       meetingsBooked: counts.meetingsBooked,
+      interestedInDemo: counts.interestedInDemo,
+      demoSent: counts.demoSent,
       meetingsToday: counts.meetingsToday,
-      total: counts.contacts + counts.meetingsBooked + counts.meetingsToday,
+      total:
+        counts.contacts +
+        counts.meetingsBooked +
+        counts.interestedInDemo +
+        counts.demoSent +
+        counts.meetingsToday,
     });
   }
 
@@ -141,6 +160,8 @@ export function buildActivityStats(leads = [], { meetingsTodayByDay = {} } = {})
     dayKey: todayKey,
     contacts: 0,
     meetingsBooked: 0,
+    interestedInDemo: 0,
+    demoSent: 0,
     meetingsToday: Number(meetingsTodayByDay[todayKey] || 0),
     total: Number(meetingsTodayByDay[todayKey] || 0),
   };

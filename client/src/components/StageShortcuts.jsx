@@ -95,6 +95,14 @@ export default function StageShortcuts({
             <strong>{todayStats?.meetingsBooked ?? 0}</strong>
           </div>
           <div className="stage-shortcuts-stat">
+            <span className="label">Demo chętni</span>
+            <strong>{todayStats?.interestedInDemo ?? 0}</strong>
+          </div>
+          <div className="stage-shortcuts-stat">
+            <span className="label">Demo wysłane</span>
+            <strong>{todayStats?.demoSent ?? 0}</strong>
+          </div>
+          <div className="stage-shortcuts-stat">
             <span className="label">Spotk. dziś</span>
             <strong>{todayStats?.meetingsToday ?? 0}</strong>
           </div>

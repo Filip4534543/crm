@@ -63,46 +63,13 @@ function migrateLeadPipelines(data) {
   return changed;
 }
 
-function migrateStageRenames(data) {
-  const renames = {
-    interested_in_demo: 'meeting_booked',
-    demo_send: 'after_meeting',
-  };
-  let changed = false;
-
-  const renameStage = (stage) => {
-    if (!stage || !renames[stage]) return stage;
-    changed = true;
-    return renames[stage];
-  };
-
-  for (const lead of data.leads || []) {
-    const next = renameStage(lead.stage);
-    if (next !== lead.stage) lead.stage = next;
-  }
-  for (const row of data.deleted_leads || []) {
-    const next = renameStage(row.stage);
-    if (next !== row.stage) row.stage = next;
-  }
-  for (const entry of data.history || []) {
-    const nextFrom = renameStage(entry.from_stage);
-    const nextTo = renameStage(entry.to_stage);
-    if (nextFrom !== entry.from_stage) entry.from_stage = nextFrom;
-    if (nextTo !== entry.to_stage) entry.to_stage = nextTo;
-  }
-
-  return changed;
-}
-
 async function loadData() {
   const store = getStoreInstance();
   const raw = await store.get(DATA_KEY, { type: 'text' });
   if (!raw) return emptyData();
   try {
     const data = { ...emptyData(), ...JSON.parse(raw) };
-    const pipelineChanged = migrateLeadPipelines(data);
-    const stageChanged = migrateStageRenames(data);
-    if (pipelineChanged || stageChanged) {
+    if (migrateLeadPipelines(data)) {
       await saveData(data);
     }
     return data;

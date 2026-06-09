@@ -6,6 +6,8 @@ export const STAGES = [
   { id: 'missed_call_2', label: 'Missed call 2', color: '#a855f7' },
   { id: 'meeting_booked', label: 'Meeting booked', color: '#d946ef' },
   { id: 'after_meeting', label: 'After meeting', color: '#ec4899' },
+  { id: 'interested_in_demo', label: 'Interested in demo', color: '#e879f9' },
+  { id: 'demo_send', label: 'Demo send', color: '#f472b6' },
   { id: 'written_message_send', label: 'Written message send', color: '#f43f5e' },
   { id: 'contact_later', label: 'Contact later', color: '#f97316' },
   { id: 'in_process', label: 'In process', color: '#eab308' },

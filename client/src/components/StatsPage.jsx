@@ -28,6 +28,18 @@ const ACTIVITY_METRICS = [
     color: '#d946ef',
   },
   {
+    key: 'interestedInDemo',
+    label: 'Demo chętni',
+    shortLabel: 'Demo chętni',
+    color: '#e879f9',
+  },
+  {
+    key: 'demoSent',
+    label: 'Demo wysłane',
+    shortLabel: 'Demo wysłane',
+    color: '#f472b6',
+  },
+  {
     key: 'meetingsToday',
     label: 'Spotkania dziś',
     shortLabel: 'Spotk. dziś',
@@ -41,6 +53,8 @@ const GOALS_KEY = 'filips-crm-daily-goals-v2';
 const DEFAULT_GOALS = {
   contacts: 5,
   meetingsBooked: 2,
+  interestedInDemo: 2,
+  demoSent: 2,
   meetingsToday: 2,
   callMinutes: 90,
 };
@@ -282,13 +296,20 @@ export default function StatsPage({
     (totals, item) => ({
       contacts: totals.contacts + item.contacts,
       meetingsBooked: totals.meetingsBooked + item.meetingsBooked,
+      interestedInDemo: totals.interestedInDemo + item.interestedInDemo,
+      demoSent: totals.demoSent + item.demoSent,
       meetingsToday: totals.meetingsToday + item.meetingsToday,
     }),
-    { contacts: 0, meetingsBooked: 0, meetingsToday: 0 }
+    { contacts: 0, meetingsBooked: 0, interestedInDemo: 0, demoSent: 0, meetingsToday: 0 }
   );
 
   const hasRangeActivity = filteredTimeline.some(
-    (item) => item.contacts || item.meetingsBooked || item.meetingsToday
+    (item) =>
+      item.contacts ||
+      item.meetingsBooked ||
+      item.interestedInDemo ||
+      item.demoSent ||
+      item.meetingsToday
   );
   const goalProgress = [
     {
@@ -302,6 +323,18 @@ export default function StatsPage({
       label: 'Umówione spotkania',
       done: activityStats?.today?.meetingsBooked ?? 0,
       goal: Number(goals.meetingsBooked || 0),
+    },
+    {
+      key: 'interestedInDemo',
+      label: 'Demo chętni',
+      done: activityStats?.today?.interestedInDemo ?? 0,
+      goal: Number(goals.interestedInDemo || 0),
+    },
+    {
+      key: 'demoSent',
+      label: 'Demo wysłane',
+      done: activityStats?.today?.demoSent ?? 0,
+      goal: Number(goals.demoSent || 0),
     },
     {
       key: 'meetingsToday',
@@ -456,8 +489,8 @@ export default function StatsPage({
           <div>
             <h2>Aktywność dzisiaj</h2>
             <p className="stats-section-copy">
-              Kontakty i umówione spotkania liczone automatycznie (max 1 na leada
-              dziennie). Spotkania dziś dodajesz ręcznie.
+              Kontakty, umówione spotkania i demo liczone automatycznie (max 1
+              na leada dziennie). Spotkania dziś dodajesz ręcznie.
             </p>
           </div>
         </div>
@@ -503,8 +536,8 @@ export default function StatsPage({
           <div>
             <h2>Trend aktywności</h2>
             <p className="stats-section-copy">
-              Historia kontaktów, umówionych spotkań i ręcznie dodanych spotkań
-              dziennych.
+              Historia kontaktów, umówionych spotkań, demo i ręcznie dodanych
+              spotkań dziennych.
             </p>
           </div>
         </div>

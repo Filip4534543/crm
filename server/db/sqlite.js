@@ -119,28 +119,6 @@ function migrateSchema(database) {
       "ALTER TABLE deleted_leads ADD COLUMN pipeline TEXT DEFAULT 'websites'"
     );
   }
-
-  migrateStageRenames(database);
-}
-
-const STAGE_RENAMES = {
-  interested_in_demo: 'meeting_booked',
-  demo_send: 'after_meeting',
-};
-
-function migrateStageRenames(database) {
-  for (const [oldStage, newStage] of Object.entries(STAGE_RENAMES)) {
-    database.prepare('UPDATE leads SET stage = ? WHERE stage = ?').run(newStage, oldStage);
-    database
-      .prepare('UPDATE deleted_leads SET stage = ? WHERE stage = ?')
-      .run(newStage, oldStage);
-    database
-      .prepare('UPDATE stage_history SET from_stage = ? WHERE from_stage = ?')
-      .run(newStage, oldStage);
-    database
-      .prepare('UPDATE stage_history SET to_stage = ? WHERE to_stage = ?')
-      .run(newStage, oldStage);
-  }
 }
 
 function mapLeadRow(row) {
