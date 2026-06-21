@@ -13,6 +13,20 @@ const STAGES = [
   'in_process',
   'win',
   'lost',
+  // New pipeline stages
+  'not_qualified',
+  'qualified',
+  'attempt_1',
+  'attempt_2',
+  'attempt_3',
+  'gatekeeper_new_1',
+  'gatekeeper_new_2',
+  'missed_call_new_1',
+  'missed_call_new_2',
+  'meeting_booked_new',
+  'after_meeting_new',
+  'contact_later_new',
+  'won',
 ];
 
 const STAGE_LABELS = {
@@ -30,17 +44,31 @@ const STAGE_LABELS = {
   in_process: 'In process',
   win: 'Win',
   lost: 'Lost',
+  // New pipeline
+  not_qualified: 'Not Qualified',
+  qualified: 'Qualified',
+  attempt_1: 'Attempt 1',
+  attempt_2: 'Attempt 2',
+  attempt_3: 'Attempt 3',
+  gatekeeper_new_1: 'Gatekeeper 1',
+  gatekeeper_new_2: 'Gatekeeper 2',
+  missed_call_new_1: 'Missed Call 1',
+  missed_call_new_2: 'Missed Call 2',
+  meeting_booked_new: 'Meeting Booked',
+  after_meeting_new: 'After Meeting',
+  contact_later_new: 'Contact Later',
+  won: 'Won',
 };
 
-const PIPELINES = ['inbox', 'websites', 'seo'];
+const PIPELINES = ['inbox', 'websites', 'new'];
 
 const PIPELINE_LABELS = {
   inbox: 'Nowe leady',
   websites: 'Websites',
-  seo: 'SEO',
+  new: 'New',
 };
 
-const ASSIGNABLE_PIPELINES = ['websites', 'seo'];
+const ASSIGNABLE_PIPELINES = ['websites', 'new'];
 
 module.exports = {
   STAGES,

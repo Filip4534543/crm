@@ -41,7 +41,6 @@ function ShortcutItem({
 export default function StageShortcuts({
   stages,
   counts,
-  todayStats,
   selectedLead,
   focusedStageId,
   dragOverStageId,
@@ -82,36 +81,6 @@ export default function StageShortcuts({
           />
         ))}
       </nav>
-
-      <div className="stage-shortcuts-stats">
-        <div className="stage-shortcuts-stats-head">Dzisiaj</div>
-        <div className="stage-shortcuts-stats-list">
-          <div className="stage-shortcuts-stat">
-            <span className="label">Kontakty</span>
-            <strong>{todayStats?.contacts ?? 0}</strong>
-          </div>
-          <div className="stage-shortcuts-stat">
-            <span className="label">Umów. spotk.</span>
-            <strong>{todayStats?.meetingsBooked ?? 0}</strong>
-          </div>
-          <div className="stage-shortcuts-stat">
-            <span className="label">Demo chętni</span>
-            <strong>{todayStats?.interestedInDemo ?? 0}</strong>
-          </div>
-          <div className="stage-shortcuts-stat">
-            <span className="label">Demo wysłane</span>
-            <strong>{todayStats?.demoSent ?? 0}</strong>
-          </div>
-          <div className="stage-shortcuts-stat">
-            <span className="label">Spotk. dziś</span>
-            <strong>{todayStats?.meetingsToday ?? 0}</strong>
-          </div>
-          <div className="stage-shortcuts-stat">
-            <span className="label">Call time (min)</span>
-            <strong>{todayStats?.callMinutes ?? 0}</strong>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }

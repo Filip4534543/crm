@@ -48,7 +48,7 @@ export default function NewLeadsPage({
     const label = PIPELINES[pipeline]?.label || pipeline;
     if (
       !window.confirm(
-        `Przenieść wszystkie ${inboxLeads.length} leadów do pipeline ${label} (Not contacted yet)?`
+        `Przenieść wszystkie ${inboxLeads.length} leadów do pipeline ${label}?`
       )
     ) {
       return;
@@ -69,8 +69,8 @@ export default function NewLeadsPage({
         <div>
           <h2>Nowe leady</h2>
           <p className="new-leads-sub">
-            Leady z n8n trafiają tutaj. Przypisz je do pipeline Websites lub SEO
-            (oba startują w „Not contacted yet”).
+            Leady z n8n trafiają tutaj. Przypisz je do pipeline Websites lub New
+            (Websites startuje w „Not contacted yet", New startuje w „Not Qualified").
           </p>
         </div>
         <div className="new-leads-header-side">
@@ -88,11 +88,11 @@ export default function NewLeadsPage({
               </button>
               <button
                 type="button"
-                className="btn-ghost new-leads-btn-seo"
+                className="btn-ghost new-leads-btn-new"
                 disabled={anyBusy}
-                onClick={() => handleAssignAll('seo')}
+                onClick={() => handleAssignAll('new')}
               >
-                → {PIPELINES.seo.label}
+                → {PIPELINES.new.label}
               </button>
             </div>
           )}
@@ -132,15 +132,15 @@ export default function NewLeadsPage({
                     disabled={isBusy}
                     onClick={() => handleAssign(lead, 'websites')}
                   >
-                    → {PIPELINES.websites.label} (Not contacted)
+                    → {PIPELINES.websites.label}
                   </button>
                   <button
                     type="button"
-                    className="btn-ghost new-leads-btn-seo"
+                    className="btn-ghost new-leads-btn-new"
                     disabled={isBusy}
-                    onClick={() => handleAssign(lead, 'seo')}
+                    onClick={() => handleAssign(lead, 'new')}
                   >
-                    → {PIPELINES.seo.label} (Not contacted)
+                    → {PIPELINES.new.label}
                   </button>
                   <button
                     type="button"
@@ -149,7 +149,7 @@ export default function NewLeadsPage({
                     onClick={() => {
                       if (
                         window.confirm(
-                          `Usunąć lead „${title}”? Trafia do zakładki Usunięte.`
+                          `Usunąć lead „${title}"? Trafia do zakładki Usunięte.`
                         )
                       ) {
                         onDeleteLead?.(lead.id);

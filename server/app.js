@@ -237,6 +237,32 @@ app.post(
   }
 );
 
+app.delete(
+  '/api/leads/stage/not_qualified',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const pipeline = req.query.pipeline || 'new';
+      res.json(await db.deleteAllLeadsInStage('not_qualified', pipeline));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+app.post(
+  '/api/leads/stage/not_qualified/dedupe',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const pipeline = req.query.pipeline || 'new';
+      res.json(await db.deleteDuplicateLeadsInStage('not_qualified', pipeline));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 app.get('/api/stats', authMiddleware, async (req, res) => {
   const pipeline = req.query.pipeline || null;
   res.json(await db.getStageCounts(pipeline));

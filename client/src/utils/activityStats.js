@@ -3,7 +3,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Statystyki liczone od tej daty (włącznie). */
 export const ACTIVITY_STATS_START = '2026-06-07';
 
-const MEETING_BOOKED_STAGES = new Set(['meeting_booked']);
+// New pipeline stage sets
+const NEW_CONTACTED_STAGES = new Set([
+  'attempt_1',
+  'attempt_2',
+  'attempt_3',
+  'missed_call_new_1',
+  'missed_call_new_2',
+]);
+const NEW_MEETING_BOOKED_STAGES = new Set(['meeting_booked_new']);
+// "Analyzed" = moved OUT of not_qualified to any other stage
+const NEW_ANALYZED_FROM = 'not_qualified';
 
 function pad(value) {
   return String(value).padStart(2, '0');
@@ -46,77 +56,70 @@ export function formatDayLabel(dayKey, options = {}) {
   return new Intl.DateTimeFormat('pl-PL', options).format(fromDayKey(dayKey));
 }
 
-function createBucket() {
-  return {
-    contacts: new Set(),
-    meetingsBooked: new Set(),
-    interestedInDemo: new Set(),
-    demoSent: new Set(),
-  };
-}
+/**
+ * Compute new-pipeline analytics (analyzed, qualified, contacted, meetingBooked)
+ * directly from the leads array filtered by pipeline === 'new'.
+ */
+export function buildNewPipelineStats(leads = []) {
+  const newLeads = leads.filter((l) => (l.pipeline || '') === 'new');
 
-function countBucket(bucket, meetingsToday = 0) {
-  return {
-    contacts: bucket.contacts.size,
-    meetingsBooked: bucket.meetingsBooked.size,
-    interestedInDemo: bucket.interestedInDemo.size,
-    demoSent: bucket.demoSent.size,
-    meetingsToday,
-  };
-}
-
-export function buildActivityStats(leads = [], { meetingsTodayByDay = {} } = {}) {
+  const analyzed = new Set();
+  const qualified = new Set();
+  const contacted = new Set();
+  const meetingBooked = new Set();
+  
   const buckets = new Map();
 
-  for (const lead of leads) {
+  function getBucket(dayKey) {
+    if (!buckets.has(dayKey)) {
+      buckets.set(dayKey, {
+        analyzed: new Set(),
+        qualified: new Set(),
+        contacted: new Set(),
+        meetingBooked: new Set(),
+      });
+    }
+    return buckets.get(dayKey);
+  }
+
+  for (const lead of newLeads) {
+    // Check history for timeline events
     for (const entry of lead.history || []) {
       const createdAt = parseStageTimestamp(entry.created_at);
       if (!createdAt) continue;
-
       const dayKey = toDayKey(createdAt);
       if (dayKey < ACTIVITY_STATS_START) continue;
+      
+      const bucket = getBucket(dayKey);
 
-      let bucket = buckets.get(dayKey);
-      if (!bucket) {
-        bucket = createBucket();
-        buckets.set(dayKey, bucket);
+      // Analyzed
+      if (entry.from_stage === NEW_ANALYZED_FROM && entry.to_stage && entry.to_stage !== NEW_ANALYZED_FROM) {
+        analyzed.add(lead.id);
+        bucket.analyzed.add(lead.id);
       }
 
-      if (
-        entry.from_stage &&
-        entry.to_stage &&
-        entry.from_stage !== entry.to_stage
-      ) {
-        bucket.contacts.add(lead.id);
+      // Qualified
+      if (entry.to_stage === 'qualified') {
+        qualified.add(lead.id);
+        bucket.qualified.add(lead.id);
       }
 
-      if (entry.to_stage && MEETING_BOOKED_STAGES.has(entry.to_stage)) {
-        bucket.meetingsBooked.add(lead.id);
+      // Contacted
+      if (entry.to_stage && NEW_CONTACTED_STAGES.has(entry.to_stage)) {
+        contacted.add(lead.id);
+        bucket.contacted.add(lead.id);
       }
 
-      if (entry.to_stage === 'interested_in_demo') {
-        bucket.interestedInDemo.add(lead.id);
+      // Meeting booked
+      if (entry.to_stage && NEW_MEETING_BOOKED_STAGES.has(entry.to_stage)) {
+        meetingBooked.add(lead.id);
+        bucket.meetingBooked.add(lead.id);
       }
-
-      if (entry.to_stage === 'demo_send') {
-        bucket.demoSent.add(lead.id);
-      }
-    }
-  }
-
-  for (const dayKey of Object.keys(meetingsTodayByDay)) {
-    if (dayKey < ACTIVITY_STATS_START) continue;
-    if (!buckets.has(dayKey)) {
-      buckets.set(dayKey, createBucket());
     }
   }
 
   const todayKey = toDayKey(new Date());
-  const metricDayKeys = Array.from(
-    new Set([...buckets.keys(), ...Object.keys(meetingsTodayByDay)])
-  )
-    .filter((dayKey) => dayKey >= ACTIVITY_STATS_START)
-    .sort();
+  const metricDayKeys = Array.from(buckets.keys()).sort();
 
   const minDayKey =
     metricDayKeys.length > 0
@@ -138,36 +141,27 @@ export function buildActivityStats(leads = [], { meetingsTodayByDay = {} } = {})
   const timeline = [];
   for (let index = 0; index < totalDays; index += 1) {
     const dayKey = shiftDayKey(rangeStart, index);
-    const meetingsToday = Number(meetingsTodayByDay[dayKey] || 0);
-    const counts = countBucket(buckets.get(dayKey) || createBucket(), meetingsToday);
+    const bucket = buckets.get(dayKey) || {
+      analyzed: new Set(),
+      qualified: new Set(),
+      contacted: new Set(),
+      meetingBooked: new Set(),
+    };
     timeline.push({
       dayKey,
-      contacts: counts.contacts,
-      meetingsBooked: counts.meetingsBooked,
-      interestedInDemo: counts.interestedInDemo,
-      demoSent: counts.demoSent,
-      meetingsToday: counts.meetingsToday,
-      total:
-        counts.contacts +
-        counts.meetingsBooked +
-        counts.interestedInDemo +
-        counts.demoSent +
-        counts.meetingsToday,
+      analyzed: bucket.analyzed.size,
+      qualified: bucket.qualified.size,
+      contacted: bucket.contacted.size,
+      meetingBooked: bucket.meetingBooked.size,
     });
   }
 
-  const today = timeline.find((item) => item.dayKey === todayKey) || {
-    dayKey: todayKey,
-    contacts: 0,
-    meetingsBooked: 0,
-    interestedInDemo: 0,
-    demoSent: 0,
-    meetingsToday: Number(meetingsTodayByDay[todayKey] || 0),
-    total: Number(meetingsTodayByDay[todayKey] || 0),
-  };
-
   return {
-    today,
+    total: newLeads.length,
+    analyzed: analyzed.size,
+    qualified: qualified.size,
+    contacted: contacted.size,
+    meetingBooked: meetingBooked.size,
     timeline,
     minDayKey: rangeStart,
     maxDayKey,

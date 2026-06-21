@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { STAGE_MAP } from '../constants';
 import {
   clampDayKey,
   formatDayLabel,
   shiftDayKey,
+  buildNewPipelineStats,
 } from '../utils/activityStats';
 
 const RANGE_PRESETS = [
@@ -14,77 +15,32 @@ const RANGE_PRESETS = [
   { key: 'all', label: 'Całość' },
 ];
 
-const ACTIVITY_METRICS = [
+const NEW_PIPELINE_METRICS = [
   {
-    key: 'contacts',
-    label: 'Kontakty',
-    shortLabel: 'Kontakty',
-    color: '#60a5fa',
+    key: 'analyzed',
+    label: 'Analyzed',
+    shortLabel: 'Analyzed',
+    color: '#818cf8',
   },
   {
-    key: 'meetingsBooked',
-    label: 'Umówione spotkania',
-    shortLabel: 'Umów. spotk.',
-    color: '#d946ef',
+    key: 'qualified',
+    label: 'Qualified',
+    shortLabel: 'Qualified',
+    color: '#34d399',
   },
   {
-    key: 'interestedInDemo',
-    label: 'Demo chętni',
-    shortLabel: 'Demo chętni',
+    key: 'contacted',
+    label: 'Contacted',
+    shortLabel: 'Contacted',
+    color: '#fb923c',
+  },
+  {
+    key: 'meetingBooked',
+    label: 'Meeting Booked',
+    shortLabel: 'Meeting Book.',
     color: '#e879f9',
   },
-  {
-    key: 'demoSent',
-    label: 'Demo wysłane',
-    shortLabel: 'Demo wysłane',
-    color: '#f472b6',
-  },
-  {
-    key: 'meetingsToday',
-    label: 'Spotkania dziś',
-    shortLabel: 'Spotk. dziś',
-    color: '#34d399',
-    manual: true,
-  },
 ];
-
-const GOALS_KEY = 'filips-crm-daily-goals-v2';
-
-const DEFAULT_GOALS = {
-  contacts: 5,
-  meetingsBooked: 2,
-  interestedInDemo: 2,
-  demoSent: 2,
-  meetingsToday: 2,
-  callMinutes: 90,
-};
-
-function getDayKey(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function formatSeconds(totalSeconds) {
-  const safe = Math.max(0, Number(totalSeconds) || 0);
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(
-    seconds
-  ).padStart(2, '0')}`;
-}
-
-function loadGoals() {
-  try {
-    const raw = localStorage.getItem(GOALS_KEY);
-    if (!raw) return { ...DEFAULT_GOALS };
-    return { ...DEFAULT_GOALS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULT_GOALS };
-  }
-}
 
 function buildLinePath(points) {
   return points.reduce(
@@ -94,7 +50,7 @@ function buildLinePath(points) {
   );
 }
 
-function ActivityChart({ timeline }) {
+function ActivityChart({ timeline, metrics = NEW_PIPELINE_METRICS }) {
   const chartWidth = Math.max(700, timeline.length * 48);
   const chartHeight = 280;
   const padding = { top: 20, right: 18, bottom: 38, left: 40 };
@@ -102,7 +58,7 @@ function ActivityChart({ timeline }) {
   const plotHeight = chartHeight - padding.top - padding.bottom;
   const maxValue = Math.max(
     ...timeline.flatMap((item) =>
-      ACTIVITY_METRICS.map((metric) => item[metric.key] || 0)
+      metrics.map((metric) => item[metric.key] || 0)
     ),
     1
   );
@@ -111,7 +67,7 @@ function ActivityChart({ timeline }) {
   ).sort((a, b) => a - b);
   const labelStep = Math.max(1, Math.ceil(timeline.length / 8));
 
-  const metricLines = ACTIVITY_METRICS.map((metric) => {
+  const metricLines = metrics.map((metric) => {
     const points = timeline.map((item, index) => {
       const x =
         padding.left +
@@ -220,40 +176,27 @@ ${metric.label}: ${point.item[metric.key] || 0}`}
 export default function StatsPage({
   stats,
   leads,
-  activityStats,
-  callSecondsToday = 0,
-  callTimerRunning = false,
-  onToggleCallTimer,
-  meetingsToday = 0,
-  onAdjustMeetingsToday,
   nextContactStats,
 }) {
   const [rangeKey, setRangeKey] = useState('30');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [goals, setGoals] = useState(loadGoals);
-  const todayKey = getDayKey();
-  const callMinutesToday = Math.floor(callSecondsToday / 60);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
-    } catch {
-      /* ignore */
-    }
-  }, [goals]);
 
   const stageStats = stats || [];
   const total = stageStats.reduce((sum, s) => sum + s.count, 0);
   const maxCount = Math.max(...stageStats.map((s) => s.count), 1);
   const winCount = stageStats.find((s) => s.stage === 'win')?.count ?? 0;
+  const wonCount = stageStats.find((s) => s.stage === 'won')?.count ?? 0;
   const lostCount = stageStats.find((s) => s.stage === 'lost')?.count ?? 0;
-  const activeCount = total - winCount - lostCount;
+  const activeCount = total - winCount - wonCount - lostCount;
   const totalEarnings = (leads || [])
     .filter((lead) => lead.stage === 'win' && lead.earnings != null)
     .reduce((sum, lead) => sum + lead.earnings, 0);
-  const minDayKey = activityStats?.minDayKey || customStart || customEnd;
-  const maxDayKey = activityStats?.maxDayKey || minDayKey;
+  
+  const newPipelineStats = useMemo(() => buildNewPipelineStats(leads || []), [leads]);
+  
+  const minDayKey = newPipelineStats?.minDayKey || customStart || customEnd;
+  const maxDayKey = newPipelineStats?.maxDayKey || minDayKey;
 
   const resolvedRange = useMemo(() => {
     if (!minDayKey || !maxDayKey) return null;
@@ -285,71 +228,16 @@ export default function StatsPage({
   }, [customEnd, customStart, maxDayKey, minDayKey, rangeKey]);
 
   const filteredTimeline = useMemo(() => {
-    if (!resolvedRange) return activityStats?.timeline || [];
-    return (activityStats?.timeline || []).filter(
+    if (!resolvedRange) return newPipelineStats?.timeline || [];
+    return (newPipelineStats?.timeline || []).filter(
       (item) =>
         item.dayKey >= resolvedRange.start && item.dayKey <= resolvedRange.end
     );
-  }, [activityStats?.timeline, resolvedRange]);
-
-  const rangeTotals = filteredTimeline.reduce(
-    (totals, item) => ({
-      contacts: totals.contacts + item.contacts,
-      meetingsBooked: totals.meetingsBooked + item.meetingsBooked,
-      interestedInDemo: totals.interestedInDemo + item.interestedInDemo,
-      demoSent: totals.demoSent + item.demoSent,
-      meetingsToday: totals.meetingsToday + item.meetingsToday,
-    }),
-    { contacts: 0, meetingsBooked: 0, interestedInDemo: 0, demoSent: 0, meetingsToday: 0 }
-  );
+  }, [newPipelineStats?.timeline, resolvedRange]);
 
   const hasRangeActivity = filteredTimeline.some(
-    (item) =>
-      item.contacts ||
-      item.meetingsBooked ||
-      item.interestedInDemo ||
-      item.demoSent ||
-      item.meetingsToday
+    (item) => item.analyzed || item.qualified || item.contacted || item.meetingBooked
   );
-  const goalProgress = [
-    {
-      key: 'contacts',
-      label: 'Kontakty',
-      done: activityStats?.today?.contacts ?? 0,
-      goal: Number(goals.contacts || 0),
-    },
-    {
-      key: 'meetingsBooked',
-      label: 'Umówione spotkania',
-      done: activityStats?.today?.meetingsBooked ?? 0,
-      goal: Number(goals.meetingsBooked || 0),
-    },
-    {
-      key: 'interestedInDemo',
-      label: 'Demo chętni',
-      done: activityStats?.today?.interestedInDemo ?? 0,
-      goal: Number(goals.interestedInDemo || 0),
-    },
-    {
-      key: 'demoSent',
-      label: 'Demo wysłane',
-      done: activityStats?.today?.demoSent ?? 0,
-      goal: Number(goals.demoSent || 0),
-    },
-    {
-      key: 'meetingsToday',
-      label: 'Spotkania dziś',
-      done: meetingsToday,
-      goal: Number(goals.meetingsToday || 0),
-      manual: true,
-    },
-    {
-      key: 'callMinutes',
-      label: 'Call time (min)',
-      done: callMinutesToday,
-      goal: Number(goals.callMinutes || 0),
-    },
-  ];
 
   if (!stageStats.length) {
     return (
@@ -410,135 +298,32 @@ export default function StatsPage({
       <section className="stats-section">
         <div className="stats-section-head">
           <div>
-            <h2>Cele dzienne ({todayKey})</h2>
+            <h2>New Pipeline – Analytics</h2>
             <p className="stats-section-copy">
-              Ustaw swoje targety i od razu sprawdzaj, czy cel dnia został zrealizowany.
+              Rozkład czasowy zdarzeń w pipeline "New".
             </p>
           </div>
         </div>
-        <div className="goals-grid">
-          {goalProgress.map((item) => {
-            const done = item.done >= item.goal && item.goal > 0;
-            return (
-              <div key={item.key} className={`goal-card${done ? ' done' : ''}`}>
-                <label>{item.label}</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={goals[item.key]}
-                  onChange={(event) =>
-                    setGoals((prev) => ({
-                      ...prev,
-                      [item.key]: Math.max(0, Number(event.target.value || 0)),
-                    }))
-                  }
-                />
-                <p>
-                  {item.done}/{item.goal}{' '}
-                  <strong>{done ? 'Cel zrealizowany' : 'W trakcie'}</strong>
-                </p>
-                {item.manual && (
-                  <div className="manual-counter">
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={() => onAdjustMeetingsToday?.(-1)}
-                      disabled={meetingsToday <= 0}
-                    >
-                      −
-                    </button>
-                    <strong>{meetingsToday}</strong>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={() => onAdjustMeetingsToday?.(1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="stats-section">
-        <div className="stats-section-head">
-          <div>
-            <h2>Timer rozmów</h2>
-            <p className="stats-section-copy">
-              Mierzy łączny czas dzwonienia w bieżącym dniu.
-            </p>
+        <div className="new-pipeline-analytics" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          <div className="npa-card npa-analyzed">
+            <span className="npa-value">{newPipelineStats.analyzed}</span>
+            <span className="npa-label">Analyzed</span>
+            <span className="npa-desc">Leadów zakwalifikowanych (wyszły z Not Qualified)</span>
           </div>
-        </div>
-        <div className="call-timer-card">
-          <strong>{formatSeconds(callSecondsToday)}</strong>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => onToggleCallTimer?.()}
-          >
-            {callTimerRunning ? 'Zatrzymaj timer' : 'Start timer'}
-          </button>
-        </div>
-      </section>
-
-      <section className="stats-section">
-        <div className="stats-section-head">
-          <div>
-            <h2>Aktywność dzisiaj</h2>
-            <p className="stats-section-copy">
-              Kontakty, umówione spotkania i demo liczone automatycznie (max 1
-              na leada dziennie). Spotkania dziś dodajesz ręcznie.
-            </p>
+          <div className="npa-card npa-qualified" style={{'--npa-color': '#34d399'}}>
+            <span className="npa-value" style={{color: '#34d399'}}>{newPipelineStats.qualified}</span>
+            <span className="npa-label">Qualified</span>
+            <span className="npa-desc">Trafiły na stage Qualified</span>
           </div>
-        </div>
-        <div className="activity-today-grid">
-          {ACTIVITY_METRICS.map((metric) => (
-            <div
-              key={metric.key}
-              className="activity-mini-card"
-              style={{ '--metric-color': metric.color }}
-            >
-              <span className="activity-mini-value">
-                {metric.manual
-                  ? meetingsToday
-                  : activityStats?.today?.[metric.key] ?? 0}
-              </span>
-              <span className="activity-mini-label">{metric.label}</span>
-              {metric.manual && (
-                <div className="manual-counter compact">
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    onClick={() => onAdjustMeetingsToday?.(-1)}
-                    disabled={meetingsToday <= 0}
-                  >
-                    −
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => onAdjustMeetingsToday?.(1)}
-                  >
-                    +
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="stats-section">
-        <div className="stats-section-head">
-          <div>
-            <h2>Trend aktywności</h2>
-            <p className="stats-section-copy">
-              Historia kontaktów, umówionych spotkań, demo i ręcznie dodanych
-              spotkań dziennych.
-            </p>
+          <div className="npa-card npa-contacted">
+            <span className="npa-value">{newPipelineStats.contacted}</span>
+            <span className="npa-label">Contacted</span>
+            <span className="npa-desc">Leadów z próbą kontaktu</span>
+          </div>
+          <div className="npa-card npa-meeting">
+            <span className="npa-value">{newPipelineStats.meetingBooked}</span>
+            <span className="npa-label">Meeting Booked</span>
+            <span className="npa-desc">Leadów z umówionym spotkaniem</span>
           </div>
         </div>
 
@@ -586,19 +371,6 @@ export default function StatsPage({
           </div>
         </div>
 
-        <div className="activity-range-summary">
-          {ACTIVITY_METRICS.map((metric) => (
-            <div
-              key={metric.key}
-              className="activity-range-card"
-              style={{ '--metric-color': metric.color }}
-            >
-              <span className="activity-range-card-label">{metric.shortLabel}</span>
-              <strong>{rangeTotals[metric.key]}</strong>
-            </div>
-          ))}
-        </div>
-
         <div className="activity-chart-card">
           <div className="activity-chart-head">
             <div>
@@ -620,7 +392,7 @@ export default function StatsPage({
               </span>
             </div>
             <div className="activity-legend">
-              {ACTIVITY_METRICS.map((metric) => (
+              {NEW_PIPELINE_METRICS.map((metric) => (
                 <span key={metric.key} className="activity-legend-item">
                   <span
                     className="activity-legend-dot"
@@ -633,7 +405,7 @@ export default function StatsPage({
           </div>
 
           {hasRangeActivity ? (
-            <ActivityChart timeline={filteredTimeline} />
+            <ActivityChart timeline={filteredTimeline} metrics={NEW_PIPELINE_METRICS} />
           ) : (
             <p className="activity-empty">
               W tym zakresie nie ma jeszcze ruchów dla tych metryk.

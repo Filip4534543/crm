@@ -7,7 +7,7 @@ import {
   useSensors,
   useDroppable,
 } from '@dnd-kit/core';
-import { STAGES } from '../constants';
+import { STAGES, NEW_PIPELINE_STAGES } from '../constants';
 import LeadCard from './LeadCard';
 import StageMoveModal from './StageMoveModal';
 import StageShortcuts from './StageShortcuts';
@@ -66,11 +66,11 @@ function StageColumn({
   );
 }
 
-function resolveDropStage(overId) {
+function resolveDropStage(overId, stages) {
   if (!overId) return null;
   const id = String(overId);
   if (id.startsWith('shortcut-')) return id.slice(9);
-  if (STAGES.some((s) => s.id === id)) return id;
+  if (stages.some((s) => s.id === id)) return id;
   return null;
 }
 
@@ -81,9 +81,16 @@ export default function Pipeline({
   todayStats,
   onMoveStage,
   onLeadClick,
+  onUpdateLead,
+  onDeleteLead,
   onDeleteAllNotContacted,
   onRemoveDuplicatesNotContacted,
+  onDeleteAllNotQualified,
+  onRemoveDuplicatesNotQualified,
 }) {
+  const isNewPipeline = pipeline === 'new';
+  const stages = isNewPipeline ? NEW_PIPELINE_STAGES : STAGES;
+
   const pipelineLeads = leads.filter(
     (lead) => (lead.pipeline || 'websites') === pipeline
   );
@@ -101,8 +108,8 @@ export default function Pipeline({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const byStage = Object.fromEntries(STAGES.map((s) => [s.id, []]));
-  const counts = Object.fromEntries(STAGES.map((s) => [s.id, 0]));
+  const byStage = Object.fromEntries(stages.map((s) => [s.id, []]));
+  const counts = Object.fromEntries(stages.map((s) => [s.id, 0]));
   for (const lead of pipelineLeads) {
     if (byStage[lead.stage]) {
       byStage[lead.stage].push(lead);
@@ -143,7 +150,7 @@ export default function Pipeline({
   }
 
   function handleDragOver(event) {
-    const toStage = resolveDropStage(event.over?.id);
+    const toStage = resolveDropStage(event.over?.id, stages);
     setDragOverStageId(toStage);
   }
 
@@ -157,7 +164,7 @@ export default function Pipeline({
     }
 
     const lead = active.data.current?.lead;
-    const toStage = resolveDropStage(over.id);
+    const toStage = resolveDropStage(over.id, stages);
     if (!lead || !toStage || lead.stage === toStage) {
       setTimeout(() => setDidDrag(false), 0);
       return;
@@ -177,13 +184,14 @@ export default function Pipeline({
     onLeadClick?.(lead);
   }
 
+  // Websites pipeline: not_contacted_yet bulk actions
   const notContactedCount = counts.not_contacted_yet ?? 0;
 
   async function handleDeleteAllNotContacted() {
     if (notContactedCount === 0) return;
     if (
       !window.confirm(
-        `Usunąć wszystkie ${notContactedCount} leadów ze stage „Not contacted yet”? Tej operacji nie można cofnąć.`
+        `Usunąć wszystkie ${notContactedCount} leadów ze stage „Not contacted yet"? Tej operacji nie można cofnąć.`
       )
     ) {
       return;
@@ -201,7 +209,7 @@ export default function Pipeline({
     if (notContactedCount === 0) return;
     if (
       !window.confirm(
-        'Usunąć duplikaty w „Not contacted yet”? Zostanie najstarszy lead, a porównanie obejmie wszystkie pola oraz kosz (Usunięte).'
+        'Usunąć duplikaty w „Not contacted yet"? Zostanie najstarszy lead, a porównanie obejmie wszystkie pola oraz kosz (Usunięte).'
       )
     ) {
       return;
@@ -219,6 +227,67 @@ export default function Pipeline({
     } finally {
       setBulkBusy(false);
     }
+  }
+
+  // New pipeline: not_qualified bulk actions
+  const notQualifiedCount = counts.not_qualified ?? 0;
+
+  async function handleDeleteAllNotQualified() {
+    if (notQualifiedCount === 0) return;
+    if (
+      !window.confirm(
+        `Usunąć wszystkie ${notQualifiedCount} leadów ze stage „Not Qualified"? Tej operacji nie można cofnąć.`
+      )
+    ) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      await onDeleteAllNotQualified?.();
+      if (selectedLead?.stage === 'not_qualified') setSelectedLead(null);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleRemoveDuplicatesNotQualified() {
+    if (notQualifiedCount === 0) return;
+    if (
+      !window.confirm(
+        'Usunąć duplikaty w „Not Qualified"? Zostanie najstarszy lead.'
+      )
+    ) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const result = await onRemoveDuplicatesNotQualified?.();
+      if (result?.deleted === 0) {
+        window.alert('Nie znaleziono duplikatów do usunięcia.');
+      }
+      if (selectedLead?.stage === 'not_qualified') {
+        const still = pipelineLeads.find((l) => l.id === selectedLead.id);
+        if (!still) setSelectedLead(null);
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  function getBulkActionsForStage(stageId) {
+    if (stageId === 'not_contacted_yet' && !isNewPipeline) {
+      return {
+        onDeleteAll: handleDeleteAllNotContacted,
+        onDedupe: handleRemoveDuplicates,
+      };
+    }
+    if (stageId === 'not_qualified' && isNewPipeline) {
+      return {
+        onDeleteAll: handleDeleteAllNotQualified,
+        onDedupe: handleRemoveDuplicatesNotQualified,
+      };
+    }
+    return null;
   }
 
   async function confirmMove({ description, agreed_sum, task }) {
@@ -241,7 +310,7 @@ export default function Pipeline({
       >
         <div className="pipeline-layout">
           <StageShortcuts
-            stages={STAGES}
+            stages={stages}
             counts={counts}
             todayStats={todayStats}
             selectedLead={selectedLead}
@@ -251,20 +320,13 @@ export default function Pipeline({
           />
           <div className="pipeline-scroll">
             <div className="pipeline">
-              {STAGES.map((stage) => (
+              {stages.map((stage) => (
                 <StageColumn
                   key={stage.id}
                   stage={stage}
                   leads={byStage[stage.id]}
                   bulkBusy={bulkBusy}
-                  bulkActions={
-                    stage.id === 'not_contacted_yet'
-                      ? {
-                          onDeleteAll: handleDeleteAllNotContacted,
-                          onDedupe: handleRemoveDuplicates,
-                        }
-                      : null
-                  }
+                  bulkActions={getBulkActionsForStage(stage.id)}
                   setColumnRef={(el) => {
                     columnRefs.current[stage.id] = el;
                   }}
@@ -275,8 +337,14 @@ export default function Pipeline({
                       lead={lead}
                       tasks={allTasks.filter((task) => task.lead_id === lead.id)}
                       selected={selectedLead?.id === lead.id}
+                      showDelete={
+                        isNewPipeline && lead.stage === 'not_qualified'
+                      }
+                      showInlineEdit={isNewPipeline}
                       onClick={handleLeadClick}
                       onDoubleClick={handleLeadDoubleClick}
+                      onDelete={onDeleteLead}
+                      onUpdate={onUpdateLead}
                     />
                   ))}
                 </StageColumn>

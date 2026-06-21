@@ -94,6 +94,16 @@ export const api = {
       `/api/leads/stage/not_contacted_yet/dedupe?pipeline=${encodeURIComponent(pipeline)}`,
       { method: 'POST' }
     ),
+  deleteAllNotQualified: (pipeline = 'new') =>
+    request(
+      `/api/leads/stage/not_qualified?pipeline=${encodeURIComponent(pipeline)}`,
+      { method: 'DELETE' }
+    ),
+  removeDuplicatesNotQualified: (pipeline = 'new') =>
+    request(
+      `/api/leads/stage/not_qualified/dedupe?pipeline=${encodeURIComponent(pipeline)}`,
+      { method: 'POST' }
+    ),
   getTasks: () => request('/api/tasks'),
   createTask: (body) =>
     request('/api/tasks', { method: 'POST', body: JSON.stringify(body) }),

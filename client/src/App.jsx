@@ -9,11 +9,8 @@ import ApiPage from './components/ApiPage';
 import DeletedLeadsPage from './components/DeletedLeadsPage';
 import LeadDetailModal from './components/LeadDetailModal';
 import ManualLeadModal from './components/ManualLeadModal';
-import { buildActivityStats } from './utils/activityStats';
 
 const THEME_KEY = 'filips-crm-theme';
-const CALL_TIMER_KEY = 'filips-crm-call-timer-v1';
-const MEETINGS_TODAY_KEY = 'filips-crm-meetings-today-v1';
 
 function getInitialTheme() {
   try {
@@ -37,31 +34,6 @@ function dayKeyFromDate(date = new Date()) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-function loadMeetingsTodayState() {
-  try {
-    const raw = localStorage.getItem(MEETINGS_TODAY_KEY);
-    if (!raw) return { dayTotals: {} };
-    const parsed = JSON.parse(raw);
-    return { dayTotals: parsed?.dayTotals || {} };
-  } catch {
-    return { dayTotals: {} };
-  }
-}
-
-function loadCallTimerState() {
-  try {
-    const raw = localStorage.getItem(CALL_TIMER_KEY);
-    if (!raw) return { runningSince: null, dayTotals: {} };
-    const parsed = JSON.parse(raw);
-    return {
-      runningSince: parsed?.runningSince || null,
-      dayTotals: parsed?.dayTotals || {},
-    };
-  } catch {
-    return { runningSince: null, dayTotals: {} };
-  }
 }
 
 function resolveLeadLastContact(lead, tasksByLead) {
@@ -93,9 +65,7 @@ export default function App() {
   const [selectedLead, setSelectedLead] = useState(null);
   const [showManualLeadModal, setShowManualLeadModal] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
-  const [callTimer, setCallTimer] = useState(loadCallTimerState);
-  const [meetingsToday, setMeetingsToday] = useState(loadMeetingsTodayState);
-  const [timerTick, setTimerTick] = useState(0);
+  
   const allTasks = useMemo(() => [...(tasks?.active || []), ...(tasks?.done || [])], [tasks]);
   const leadsWithMeta = useMemo(() => {
     const tasksByLead = new Map();
@@ -109,26 +79,12 @@ export default function App() {
       last_contact_at: resolveLeadLastContact(lead, tasksByLead),
     }));
   }, [leads, allTasks]);
-  const activityStats = useMemo(
-    () => buildActivityStats(leadsWithMeta, { meetingsTodayByDay: meetingsToday.dayTotals }),
-    [leadsWithMeta, meetingsToday.dayTotals]
-  );
-  const meetingsTodayCount = useMemo(() => {
-    const day = dayKeyFromDate();
-    return Number(meetingsToday.dayTotals?.[day] || 0);
-  }, [meetingsToday.dayTotals]);
-  const callSecondsToday = useMemo(() => {
-    const day = dayKeyFromDate();
-    const base = Number(callTimer.dayTotals?.[day] || 0);
-    if (!callTimer.runningSince) return base;
-    const started = parseDateLike(callTimer.runningSince);
-    if (!started) return base;
-    return base + Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000));
-  }, [callTimer, timerTick]);
+  
   const inboxCount = useMemo(
     () => leads.filter((l) => (l.pipeline || 'websites') === 'inbox').length,
     [leads]
   );
+  
   const nextContactStats = useMemo(() => {
     const today = dayKeyFromDate();
     const planned = (tasks?.active || []).filter(
@@ -150,28 +106,6 @@ export default function App() {
       /* ignore */
     }
   }, [theme]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(CALL_TIMER_KEY, JSON.stringify(callTimer));
-    } catch {
-      /* ignore */
-    }
-  }, [callTimer]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(MEETINGS_TODAY_KEY, JSON.stringify(meetingsToday));
-    } catch {
-      /* ignore */
-    }
-  }, [meetingsToday]);
-
-  useEffect(() => {
-    if (!callTimer.runningSince) return undefined;
-    const interval = setInterval(() => setTimerTick((v) => v + 1), 1000);
-    return () => clearInterval(interval);
-  }, [callTimer.runningSince]);
 
   const refresh = useCallback(async () => {
     const [leadsData, statsData, deletedData] = await Promise.all([
@@ -255,36 +189,6 @@ export default function App() {
     setSelectedLead(null);
   }
 
-  function adjustMeetingsToday(delta) {
-    setMeetingsToday((current) => {
-      const today = dayKeyFromDate();
-      const dayTotals = { ...(current.dayTotals || {}) };
-      const next = Math.max(0, Number(dayTotals[today] || 0) + delta);
-      dayTotals[today] = next;
-      return { ...current, dayTotals };
-    });
-  }
-
-  function toggleCallTimer() {
-    setCallTimer((current) => {
-      const today = dayKeyFromDate();
-      const dayTotals = { ...(current.dayTotals || {}) };
-      if (!current.runningSince) {
-        return { ...current, runningSince: new Date().toISOString() };
-      }
-      const started = parseDateLike(current.runningSince);
-      const elapsed = started
-        ? Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000))
-        : 0;
-      dayTotals[today] = Number(dayTotals[today] || 0) + elapsed;
-      return {
-        ...current,
-        runningSince: null,
-        dayTotals,
-      };
-    });
-  }
-
   if (loading) {
     return (
       <div className="login-page">
@@ -328,10 +232,10 @@ export default function App() {
           </button>
           <button
             type="button"
-            className={`tab-btn${tab === 'seo' ? ' active' : ''}`}
-            onClick={() => setTab('seo')}
+            className={`tab-btn${tab === 'new' ? ' active' : ''}`}
+            onClick={() => setTab('new')}
           >
-            SEO
+            New
           </button>
           <button
             type="button"
@@ -363,13 +267,6 @@ export default function App() {
           </button>
         </nav>
         <div className="header-actions">
-          <button
-            type="button"
-            className={`btn-ghost${callTimer.runningSince ? ' active' : ''}`}
-            onClick={toggleCallTimer}
-          >
-            {callTimer.runningSince ? 'Stop call timer' : 'Start call timer'}
-          </button>
           <button
             type="button"
             className="btn-primary"
@@ -419,19 +316,23 @@ export default function App() {
             }}
           />
         )}
-        {(tab === 'websites' || tab === 'seo') && (
+        {(tab === 'websites' || tab === 'new') && (
           <div className="pipeline-wrap">
             <Pipeline
               pipeline={tab}
               leads={leadsWithMeta}
               tasks={tasks}
-              todayStats={{
-                ...activityStats.today,
-                callMinutes: Math.floor(callSecondsToday / 60),
-                meetingsToday: meetingsTodayCount,
-              }}
               onMoveStage={handleMoveStage}
               onLeadClick={(lead) => setSelectedLead(lead)}
+              onUpdateLead={async (id, fields) => {
+                await api.updateLead(id, fields);
+                await refresh();
+              }}
+              onDeleteLead={async (id) => {
+                await api.deleteLead(id);
+                if (selectedLead?.id === id) setSelectedLead(null);
+                await refresh();
+              }}
               onDeleteAllNotContacted={async () => {
                 await api.deleteAllNotContacted(tab);
                 setSelectedLead(null);
@@ -439,6 +340,16 @@ export default function App() {
               }}
               onRemoveDuplicatesNotContacted={async () => {
                 const result = await api.removeDuplicatesNotContacted(tab);
+                await refresh();
+                return result;
+              }}
+              onDeleteAllNotQualified={async () => {
+                await api.deleteAllNotQualified(tab);
+                setSelectedLead(null);
+                await refresh();
+              }}
+              onRemoveDuplicatesNotQualified={async () => {
+                const result = await api.removeDuplicatesNotQualified(tab);
                 await refresh();
                 return result;
               }}
@@ -450,12 +361,6 @@ export default function App() {
             stats={stats}
             leads={leadsWithMeta}
             tasks={tasks}
-            activityStats={activityStats}
-            callSecondsToday={callSecondsToday}
-            callTimerRunning={Boolean(callTimer.runningSince)}
-            onToggleCallTimer={toggleCallTimer}
-            meetingsToday={meetingsTodayCount}
-            onAdjustMeetingsToday={adjustMeetingsToday}
             nextContactStats={nextContactStats}
           />
         )}
