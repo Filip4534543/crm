@@ -53,10 +53,18 @@ function migrateLeadPipelines(data) {
       lead.pipeline = 'websites';
       changed = true;
     }
+    if (lead.pipeline === 'new' && lead.stage === 'not_contacted_yet') {
+      lead.stage = 'not_qualified';
+      changed = true;
+    }
   }
   for (const row of data.deleted_leads || []) {
     if (!row.pipeline) {
       row.pipeline = 'websites';
+      changed = true;
+    }
+    if (row.pipeline === 'new' && row.stage === 'not_contacted_yet') {
+      row.stage = 'not_qualified';
       changed = true;
     }
   }
@@ -277,6 +285,10 @@ async function updateLeadStage(id, toStage, description, agreedSum) {
   return getLeadById(id);
 }
 
+function entryStageForPipeline(pipeline) {
+  return pipeline === 'new' ? 'not_qualified' : 'not_contacted_yet';
+}
+
 async function assignLeadToPipeline(id, targetPipeline) {
   if (!ASSIGNABLE_PIPELINES.includes(targetPipeline)) {
     throw new Error('Invalid pipeline');
@@ -290,16 +302,17 @@ async function assignLeadToPipeline(id, targetPipeline) {
 
   const fromStage = lead.stage;
   const label = PIPELINE_LABELS[targetPipeline] || targetPipeline;
+  const entryStage = entryStageForPipeline(targetPipeline);
   lead.pipeline = targetPipeline;
-  lead.stage = 'not_contacted_yet';
+  lead.stage = entryStage;
   lead.updated_at = now();
 
   data.history.push({
     id: data.nextHistoryId++,
     lead_id: id,
     from_stage: fromStage,
-    to_stage: 'not_contacted_yet',
-    description: `Przeniesiono do pipeline ${label} (Not contacted yet)`,
+    to_stage: entryStage,
+    description: `Przeniesiono do pipeline ${label}`,
     created_at: now(),
   });
 
@@ -321,15 +334,16 @@ async function assignAllInboxToPipeline(targetPipeline) {
     if (!lead || lead.pipeline !== 'inbox') continue;
     const fromStage = lead.stage;
     const label = PIPELINE_LABELS[targetPipeline] || targetPipeline;
+    const entryStage = entryStageForPipeline(targetPipeline);
     lead.pipeline = targetPipeline;
-    lead.stage = 'not_contacted_yet';
+    lead.stage = entryStage;
     lead.updated_at = now();
     data.history.push({
       id: data.nextHistoryId++,
       lead_id: id,
       from_stage: fromStage,
-      to_stage: 'not_contacted_yet',
-      description: `Przeniesiono do pipeline ${label} (Not contacted yet)`,
+      to_stage: entryStage,
+      description: `Przeniesiono do pipeline ${label}`,
       created_at: now(),
     });
     moved++;

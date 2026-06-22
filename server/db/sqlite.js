@@ -119,6 +119,13 @@ function migrateSchema(database) {
       "ALTER TABLE deleted_leads ADD COLUMN pipeline TEXT DEFAULT 'websites'"
     );
   }
+
+  database.exec(
+    "UPDATE leads SET stage = 'not_qualified' WHERE pipeline = 'new' AND stage = 'not_contacted_yet'"
+  );
+  database.exec(
+    "UPDATE deleted_leads SET stage = 'not_qualified' WHERE pipeline = 'new' AND stage = 'not_contacted_yet'"
+  );
 }
 
 function mapLeadRow(row) {
@@ -320,6 +327,10 @@ function updateLeadStage(id, toStage, description, agreedSum) {
   return getLeadById(id);
 }
 
+function entryStageForPipeline(pipeline) {
+  return pipeline === 'new' ? 'not_qualified' : 'not_contacted_yet';
+}
+
 function assignLeadToPipeline(id, targetPipeline) {
   if (!ASSIGNABLE_PIPELINES.includes(targetPipeline)) {
     throw new Error('Invalid pipeline');
@@ -331,23 +342,20 @@ function assignLeadToPipeline(id, targetPipeline) {
   }
 
   const label = PIPELINE_LABELS[targetPipeline] || targetPipeline;
+  const entryStage = entryStageForPipeline(targetPipeline);
   getDb()
     .prepare(
-      `UPDATE leads SET pipeline = @pipeline, stage = 'not_contacted_yet',
+      `UPDATE leads SET pipeline = @pipeline, stage = @entryStage,
        updated_at = datetime('now') WHERE id = @id`
     )
-    .run({ id, pipeline: targetPipeline });
+    .run({ id, pipeline: targetPipeline, entryStage });
 
   getDb()
     .prepare(
       `INSERT INTO stage_history (lead_id, from_stage, to_stage, description)
-     VALUES (?, ?, 'not_contacted_yet', ?)`
+     VALUES (?, ?, ?, ?)`
     )
-    .run(
-      id,
-      lead.stage,
-      `Przeniesiono do pipeline ${label} (Not contacted yet)`
-    );
+    .run(id, lead.stage, entryStage, `Przeniesiono do pipeline ${label}`);
 
   return getLeadById(id);
 }
