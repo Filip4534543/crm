@@ -28,7 +28,7 @@ export default function NewLeadsPage({
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const inboxLeads = leads
-    .filter((lead) => (lead.pipeline || 'websites') === 'inbox')
+    .filter((lead) => (lead.pipeline || 'pipeline') === 'inbox')
     .sort((a, b) => {
       const ta = new Date(String(a.created_at).replace(' ', 'T')).getTime();
       const tb = new Date(String(b.created_at).replace(' ', 'T')).getTime();
@@ -69,8 +69,8 @@ export default function NewLeadsPage({
         <div>
           <h2>Nowe leady</h2>
           <p className="new-leads-sub">
-            Leady z n8n trafiają tutaj. Przypisz je do pipeline Websites lub New
-            (Websites startuje w „Not contacted yet", New startuje w „Not Qualified").
+            Leady z n8n trafiają tutaj. Przypisz je do Pipeline (startują w „Not
+            Qualified").
           </p>
         </div>
         <div className="new-leads-header-side">
@@ -82,17 +82,9 @@ export default function NewLeadsPage({
                 type="button"
                 className="btn-primary"
                 disabled={anyBusy}
-                onClick={() => handleAssignAll('websites')}
+                onClick={() => handleAssignAll('pipeline')}
               >
-                → {PIPELINES.websites.label}
-              </button>
-              <button
-                type="button"
-                className="btn-ghost new-leads-btn-new"
-                disabled={anyBusy}
-                onClick={() => handleAssignAll('new')}
-              >
-                → {PIPELINES.new.label}
+                → {PIPELINES.pipeline.label}
               </button>
             </div>
           )}
@@ -130,17 +122,9 @@ export default function NewLeadsPage({
                     type="button"
                     className="btn-primary"
                     disabled={isBusy}
-                    onClick={() => handleAssign(lead, 'websites')}
+                    onClick={() => handleAssign(lead, 'pipeline')}
                   >
-                    → {PIPELINES.websites.label}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-ghost new-leads-btn-new"
-                    disabled={isBusy}
-                    onClick={() => handleAssign(lead, 'new')}
-                  >
-                    → {PIPELINES.new.label}
+                    → {PIPELINES.pipeline.label}
                   </button>
                   <button
                     type="button"

@@ -1,4 +1,4 @@
-const BULK_STAGE = 'not_contacted_yet';
+const BULK_STAGES = new Set(['not_qualified']);
 
 function normalizePhone(phone) {
   if (!phone || phone === '-') return '';
@@ -106,13 +106,13 @@ function duplicateIdsToRemoveForStage({
 }
 
 function assertBulkStage(stage) {
-  if (stage !== BULK_STAGE) {
-    throw new Error('Operacja dozwolona tylko dla stage not_contacted_yet');
+  if (!BULK_STAGES.has(stage)) {
+    throw new Error('Operacja dozwolona tylko dla stage not_qualified');
   }
 }
 
 module.exports = {
-  BULK_STAGE,
+  BULK_STAGES,
   matchDetails,
   findBestDuplicateMatch,
   duplicateIdsToRemoveForStage,

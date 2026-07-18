@@ -7,7 +7,7 @@ import {
   useSensors,
   useDroppable,
 } from '@dnd-kit/core';
-import { STAGES, NEW_PIPELINE_STAGES } from '../constants';
+import { PIPELINE_STAGES } from '../constants';
 import LeadCard from './LeadCard';
 import StageMoveModal from './StageMoveModal';
 import StageShortcuts from './StageShortcuts';
@@ -75,7 +75,7 @@ function resolveDropStage(overId, stages) {
 }
 
 export default function Pipeline({
-  pipeline = 'websites',
+  pipeline = 'pipeline',
   leads,
   tasks,
   todayStats,
@@ -83,16 +83,13 @@ export default function Pipeline({
   onLeadClick,
   onUpdateLead,
   onDeleteLead,
-  onDeleteAllNotContacted,
-  onRemoveDuplicatesNotContacted,
   onDeleteAllNotQualified,
   onRemoveDuplicatesNotQualified,
 }) {
-  const isNewPipeline = pipeline === 'new';
-  const stages = isNewPipeline ? NEW_PIPELINE_STAGES : STAGES;
+  const stages = PIPELINE_STAGES;
 
   const pipelineLeads = leads.filter(
-    (lead) => (lead.pipeline || 'websites') === pipeline
+    (lead) => (lead.pipeline || 'pipeline') === pipeline
   );
   const [activeLead, setActiveLead] = useState(null);
   const [pendingMove, setPendingMove] = useState(null);
@@ -121,8 +118,7 @@ export default function Pipeline({
     const col = columnRefs.current[stageId];
     const scroller = col?.closest('.pipeline-scroll');
     if (col && scroller) {
-      const left =
-        col.offsetLeft - scroller.offsetLeft - 12;
+      const left = col.offsetLeft - scroller.offsetLeft - 12;
       scroller.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
     }
     setFocusedStageId(stageId);
@@ -184,52 +180,6 @@ export default function Pipeline({
     onLeadClick?.(lead);
   }
 
-  // Websites pipeline: not_contacted_yet bulk actions
-  const notContactedCount = counts.not_contacted_yet ?? 0;
-
-  async function handleDeleteAllNotContacted() {
-    if (notContactedCount === 0) return;
-    if (
-      !window.confirm(
-        `Usunąć wszystkie ${notContactedCount} leadów ze stage „Not contacted yet"? Tej operacji nie można cofnąć.`
-      )
-    ) {
-      return;
-    }
-    setBulkBusy(true);
-    try {
-      await onDeleteAllNotContacted?.();
-      if (selectedLead?.stage === 'not_contacted_yet') setSelectedLead(null);
-    } finally {
-      setBulkBusy(false);
-    }
-  }
-
-  async function handleRemoveDuplicates() {
-    if (notContactedCount === 0) return;
-    if (
-      !window.confirm(
-        'Usunąć duplikaty w „Not contacted yet"? Zostanie najstarszy lead, a porównanie obejmie wszystkie pola oraz kosz (Usunięte).'
-      )
-    ) {
-      return;
-    }
-    setBulkBusy(true);
-    try {
-      const result = await onRemoveDuplicatesNotContacted?.();
-      if (result?.deleted === 0) {
-        window.alert('Nie znaleziono duplikatów do usunięcia.');
-      }
-      if (selectedLead?.stage === 'not_contacted_yet') {
-        const still = pipelineLeads.find((l) => l.id === selectedLead.id);
-        if (!still) setSelectedLead(null);
-      }
-    } finally {
-      setBulkBusy(false);
-    }
-  }
-
-  // New pipeline: not_qualified bulk actions
   const notQualifiedCount = counts.not_qualified ?? 0;
 
   async function handleDeleteAllNotQualified() {
@@ -275,13 +225,7 @@ export default function Pipeline({
   }
 
   function getBulkActionsForStage(stageId) {
-    if (stageId === 'not_contacted_yet' && !isNewPipeline) {
-      return {
-        onDeleteAll: handleDeleteAllNotContacted,
-        onDedupe: handleRemoveDuplicates,
-      };
-    }
-    if (stageId === 'not_qualified' && isNewPipeline) {
+    if (stageId === 'not_qualified') {
       return {
         onDeleteAll: handleDeleteAllNotQualified,
         onDedupe: handleRemoveDuplicatesNotQualified,
@@ -337,10 +281,8 @@ export default function Pipeline({
                       lead={lead}
                       tasks={allTasks.filter((task) => task.lead_id === lead.id)}
                       selected={selectedLead?.id === lead.id}
-                      showDelete={
-                        isNewPipeline && lead.stage === 'not_qualified'
-                      }
-                      showInlineEdit={isNewPipeline}
+                      showDelete={lead.stage === 'not_qualified'}
+                      showInlineEdit
                       onClick={handleLeadClick}
                       onDoubleClick={handleLeadDoubleClick}
                       onDelete={onDeleteLead}

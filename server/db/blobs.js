@@ -4,6 +4,7 @@ const {
   STAGE_LABELS,
   PIPELINE_LABELS,
   ASSIGNABLE_PIPELINES,
+  mapStageToPipeline,
 } = require('../constants');
 const { sortActiveTasks } = require('./sortTasks');
 const {
@@ -48,26 +49,50 @@ function getStoreInstance() {
 
 function migrateLeadPipelines(data) {
   let changed = false;
+
+  function migrateLeadRow(row) {
+    if (!row) return;
+    const mappedStage = mapStageToPipeline(row.stage);
+    if (mappedStage !== row.stage) {
+      row.stage = mappedStage;
+      changed = true;
+    }
+    if (
+      !row.pipeline ||
+      row.pipeline === 'websites' ||
+      row.pipeline === 'new'
+    ) {
+      row.pipeline = 'pipeline';
+      changed = true;
+    }
+  }
+
   for (const lead of data.leads || []) {
-    if (!lead.pipeline) {
-      lead.pipeline = 'websites';
-      changed = true;
-    }
-    if (lead.pipeline === 'new' && lead.stage === 'not_contacted_yet') {
-      lead.stage = 'not_qualified';
-      changed = true;
-    }
+    migrateLeadRow(lead);
   }
   for (const row of data.deleted_leads || []) {
-    if (!row.pipeline) {
-      row.pipeline = 'websites';
-      changed = true;
+    migrateLeadRow(row);
+  }
+
+  // Remap history stage ids; keep descriptions, timestamps, and ids intact
+  for (const entry of data.history || []) {
+    if (!entry) continue;
+    if (entry.from_stage != null) {
+      const mappedFrom = mapStageToPipeline(entry.from_stage);
+      if (mappedFrom !== entry.from_stage) {
+        entry.from_stage = mappedFrom;
+        changed = true;
+      }
     }
-    if (row.pipeline === 'new' && row.stage === 'not_contacted_yet') {
-      row.stage = 'not_qualified';
-      changed = true;
+    if (entry.to_stage != null) {
+      const mappedTo = mapStageToPipeline(entry.to_stage);
+      if (mappedTo !== entry.to_stage) {
+        entry.to_stage = mappedTo;
+        changed = true;
+      }
     }
   }
+
   return changed;
 }
 
@@ -98,10 +123,11 @@ function mapLeadRow(data, row) {
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   const lastDescription =
     history.find((h) => h.description)?.description ?? null;
+  const pipeline = row.pipeline || 'pipeline';
   return {
     ...row,
-    pipeline: row.pipeline || 'websites',
-    pipeline_label: PIPELINE_LABELS[row.pipeline] || row.pipeline || 'Websites',
+    pipeline,
+    pipeline_label: PIPELINE_LABELS[pipeline] || pipeline,
     stage_label: STAGE_LABELS[row.stage] || row.stage,
     last_description: lastDescription,
     history,
@@ -143,8 +169,8 @@ async function getStageCounts(pipeline) {
   const counts = Object.fromEntries(STAGES.map((s) => [s, 0]));
   for (const lead of data.leads) {
     if (pipeline) {
-      if ((lead.pipeline || 'websites') !== pipeline) continue;
-    } else if ((lead.pipeline || 'websites') === 'inbox') {
+      if ((lead.pipeline || 'pipeline') !== pipeline) continue;
+    } else if ((lead.pipeline || 'pipeline') === 'inbox') {
       continue;
     }
     if (counts[lead.stage] !== undefined) counts[lead.stage]++;
@@ -222,7 +248,8 @@ async function insertLead(payload, options = {}) {
     leadInput.initial_description ||
     (options.source === 'manual' ? 'Lead dodany ręcznie' : 'Nowy lead z n8n');
   const pipeline =
-    options.pipeline || (options.source === 'manual' ? 'websites' : 'inbox');
+    options.pipeline || (options.source === 'manual' ? 'pipeline' : 'inbox');
+  const entryStage = entryStageForPipeline(pipeline);
   const lead = {
     id: data.nextLeadId++,
     company_name: leadInput.company_name,
@@ -235,7 +262,7 @@ async function insertLead(payload, options = {}) {
     processed: leadInput.processed,
     contact_name: leadInput.contact_name,
     prospect_name: leadInput.prospect_name,
-    stage: 'not_contacted_yet',
+    stage: entryStage,
     pipeline,
     agreed_sum: null,
     earnings: null,
@@ -247,7 +274,7 @@ async function insertLead(payload, options = {}) {
     id: data.nextHistoryId++,
     lead_id: lead.id,
     from_stage: null,
-    to_stage: 'not_contacted_yet',
+    to_stage: entryStage,
     description: initialDescription,
     created_at: ts,
   });
@@ -268,7 +295,7 @@ async function updateLeadStage(id, toStage, description, agreedSum) {
   if (agreedSum !== undefined && agreedSum !== null && agreedSum !== '') {
     lead.agreed_sum = parseFloat(agreedSum);
   }
-  if (toStage === 'win' && lead.agreed_sum != null) {
+  if ((toStage === 'won' || toStage === 'win') && lead.agreed_sum != null) {
     lead.earnings = lead.agreed_sum;
   }
 
@@ -285,8 +312,8 @@ async function updateLeadStage(id, toStage, description, agreedSum) {
   return getLeadById(id);
 }
 
-function entryStageForPipeline(pipeline) {
-  return pipeline === 'new' ? 'not_qualified' : 'not_contacted_yet';
+function entryStageForPipeline(_pipeline) {
+  return 'not_qualified';
 }
 
 async function assignLeadToPipeline(id, targetPipeline) {
@@ -326,7 +353,7 @@ async function assignAllInboxToPipeline(targetPipeline) {
   }
   const data = await loadData();
   const ids = data.leads
-    .filter((l) => (l.pipeline || 'websites') === 'inbox')
+    .filter((l) => (l.pipeline || 'pipeline') === 'inbox')
     .map((l) => l.id);
   let moved = 0;
   for (const id of ids) {
@@ -489,25 +516,25 @@ function deleteLeadIdsFromData(data, ids) {
   return deleted;
 }
 
-async function deleteAllLeadsInStage(stage, pipeline = 'websites') {
+async function deleteAllLeadsInStage(stage, pipeline = 'pipeline') {
   assertBulkStage(stage);
   const data = await loadData();
   const ids = data.leads
-    .filter((l) => l.stage === stage && (l.pipeline || 'websites') === pipeline)
+    .filter((l) => l.stage === stage && (l.pipeline || 'pipeline') === pipeline)
     .map((l) => l.id);
   const deleted = deleteLeadIdsFromData(data, ids);
   if (deleted > 0) await saveData(data);
   return { deleted, stage, pipeline };
 }
 
-async function deleteDuplicateLeadsInStage(stage, pipeline = 'websites') {
+async function deleteDuplicateLeadsInStage(stage, pipeline = 'pipeline') {
   assertBulkStage(stage);
   const data = await loadData();
   const leads = data.leads.filter(
-    (l) => l.stage === stage && (l.pipeline || 'websites') === pipeline
+    (l) => l.stage === stage && (l.pipeline || 'pipeline') === pipeline
   );
   const activeOutsideScope = data.leads.filter(
-    (l) => l.stage !== stage || (l.pipeline || 'websites') !== pipeline
+    (l) => l.stage !== stage || (l.pipeline || 'pipeline') !== pipeline
   );
   const ids = duplicateIdsToRemoveForStage({
     scopedLeads: leads,
@@ -547,8 +574,11 @@ async function restoreDeletedLead(deletedId) {
     processed: row.processed,
     contact_name: row.contact_name,
     prospect_name: row.prospect_name,
-    stage: row.stage || 'not_contacted_yet',
-    pipeline: row.pipeline || 'websites',
+    stage: mapStageToPipeline(row.stage) || 'not_qualified',
+    pipeline:
+      !row.pipeline || row.pipeline === 'websites' || row.pipeline === 'new'
+        ? 'pipeline'
+        : row.pipeline,
     agreed_sum: row.agreed_sum ?? null,
     earnings: row.earnings ?? null,
     created_at: row.created_at || ts,

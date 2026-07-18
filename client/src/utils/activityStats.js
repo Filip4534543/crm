@@ -3,17 +3,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Statystyki liczone od tej daty (włącznie). */
 export const ACTIVITY_STATS_START = '2026-06-07';
 
-// New pipeline stage sets
-const NEW_CONTACTED_STAGES = new Set([
-  'attempt_1',
-  'attempt_2',
-  'attempt_3',
-  'missed_call_new_1',
-  'missed_call_new_2',
-]);
-const NEW_MEETING_BOOKED_STAGES = new Set(['meeting_booked_new']);
+const MEETING_BOOKED_STAGES = new Set(['meeting_booked_new']);
 // "Analyzed" = moved OUT of not_qualified to any other stage
-const NEW_ANALYZED_FROM = 'not_qualified';
+const ANALYZED_FROM = 'not_qualified';
 
 function pad(value) {
   return String(value).padStart(2, '0');
@@ -57,17 +49,22 @@ export function formatDayLabel(dayKey, options = {}) {
 }
 
 /**
- * Compute new-pipeline analytics (analyzed, qualified, contacted, meetingBooked)
- * directly from the leads array filtered by pipeline === 'new'.
+ * Pipeline analytics (analyzed, qualified, contacted, meetingBooked)
+ * from leads with pipeline === 'pipeline' (also accepts legacy 'new').
+ *
+ * Contacted = any stage change except moves to "qualified".
  */
 export function buildNewPipelineStats(leads = []) {
-  const newLeads = leads.filter((l) => (l.pipeline || '') === 'new');
+  const pipelineLeads = leads.filter((l) => {
+    const p = l.pipeline || '';
+    return p === 'pipeline' || p === 'new';
+  });
 
   const analyzed = new Set();
   const qualified = new Set();
   const contacted = new Set();
   const meetingBooked = new Set();
-  
+
   const buckets = new Map();
 
   function getBucket(dayKey) {
@@ -82,18 +79,21 @@ export function buildNewPipelineStats(leads = []) {
     return buckets.get(dayKey);
   }
 
-  for (const lead of newLeads) {
-    // Check history for timeline events
+  for (const lead of pipelineLeads) {
     for (const entry of lead.history || []) {
       const createdAt = parseStageTimestamp(entry.created_at);
       if (!createdAt) continue;
       const dayKey = toDayKey(createdAt);
       if (dayKey < ACTIVITY_STATS_START) continue;
-      
+
       const bucket = getBucket(dayKey);
 
       // Analyzed
-      if (entry.from_stage === NEW_ANALYZED_FROM && entry.to_stage && entry.to_stage !== NEW_ANALYZED_FROM) {
+      if (
+        entry.from_stage === ANALYZED_FROM &&
+        entry.to_stage &&
+        entry.to_stage !== ANALYZED_FROM
+      ) {
         analyzed.add(lead.id);
         bucket.analyzed.add(lead.id);
       }
@@ -104,14 +104,20 @@ export function buildNewPipelineStats(leads = []) {
         bucket.qualified.add(lead.id);
       }
 
-      // Contacted
-      if (entry.to_stage && NEW_CONTACTED_STAGES.has(entry.to_stage)) {
+      // Contacted: every stage change except moves to qualified
+      // (ignore create / no-op events)
+      if (
+        entry.from_stage != null &&
+        entry.to_stage &&
+        entry.from_stage !== entry.to_stage &&
+        entry.to_stage !== 'qualified'
+      ) {
         contacted.add(lead.id);
         bucket.contacted.add(lead.id);
       }
 
       // Meeting booked
-      if (entry.to_stage && NEW_MEETING_BOOKED_STAGES.has(entry.to_stage)) {
+      if (entry.to_stage && MEETING_BOOKED_STAGES.has(entry.to_stage)) {
         meetingBooked.add(lead.id);
         bucket.meetingBooked.add(lead.id);
       }
@@ -157,7 +163,7 @@ export function buildNewPipelineStats(leads = []) {
   }
 
   return {
-    total: newLeads.length,
+    total: pipelineLeads.length,
     analyzed: analyzed.size,
     qualified: qualified.size,
     contacted: contacted.size,

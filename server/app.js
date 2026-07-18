@@ -212,37 +212,11 @@ app.delete('/api/leads/deleted/:id', authMiddleware, async (req, res) => {
 });
 
 app.delete(
-  '/api/leads/stage/not_contacted_yet',
-  authMiddleware,
-  async (req, res) => {
-    try {
-      const pipeline = req.query.pipeline || 'websites';
-      res.json(await db.deleteAllLeadsInStage('not_contacted_yet', pipeline));
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
-  }
-);
-
-app.post(
-  '/api/leads/stage/not_contacted_yet/dedupe',
-  authMiddleware,
-  async (req, res) => {
-    try {
-      const pipeline = req.query.pipeline || 'websites';
-      res.json(await db.deleteDuplicateLeadsInStage('not_contacted_yet', pipeline));
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
-  }
-);
-
-app.delete(
   '/api/leads/stage/not_qualified',
   authMiddleware,
   async (req, res) => {
     try {
-      const pipeline = req.query.pipeline || 'new';
+      const pipeline = req.query.pipeline || 'pipeline';
       res.json(await db.deleteAllLeadsInStage('not_qualified', pipeline));
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -255,7 +229,7 @@ app.post(
   authMiddleware,
   async (req, res) => {
     try {
-      const pipeline = req.query.pipeline || 'new';
+      const pipeline = req.query.pipeline || 'pipeline';
       res.json(await db.deleteDuplicateLeadsInStage('not_qualified', pipeline));
     } catch (err) {
       res.status(400).json({ error: err.message });

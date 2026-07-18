@@ -60,9 +60,9 @@ export default function StageMoveModal({ lead, toStage, onConfirm, onCancel }) {
           placeholder="0.00"
         />
 
-        {toStage === 'win' && (
+        {(toStage === 'won' || toStage === 'win') && (
           <p style={{ fontSize: '0.8125rem', color: 'var(--success)', marginBottom: '1rem' }}>
-            Po przeniesieniu do Win umówiona suma stanie się zarobkiem.
+            Po przeniesieniu do Won umówiona suma stanie się zarobkiem.
           </p>
         )}
 

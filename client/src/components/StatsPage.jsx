@@ -185,12 +185,16 @@ export default function StatsPage({
   const stageStats = stats || [];
   const total = stageStats.reduce((sum, s) => sum + s.count, 0);
   const maxCount = Math.max(...stageStats.map((s) => s.count), 1);
-  const winCount = stageStats.find((s) => s.stage === 'win')?.count ?? 0;
-  const wonCount = stageStats.find((s) => s.stage === 'won')?.count ?? 0;
+  const winCount =
+    (stageStats.find((s) => s.stage === 'won')?.count ?? 0) +
+    (stageStats.find((s) => s.stage === 'win')?.count ?? 0);
   const lostCount = stageStats.find((s) => s.stage === 'lost')?.count ?? 0;
-  const activeCount = total - winCount - wonCount - lostCount;
+  const activeCount = total - winCount - lostCount;
   const totalEarnings = (leads || [])
-    .filter((lead) => lead.stage === 'win' && lead.earnings != null)
+    .filter(
+      (lead) =>
+        (lead.stage === 'won' || lead.stage === 'win') && lead.earnings != null
+    )
     .reduce((sum, lead) => sum + lead.earnings, 0);
   
   const newPipelineStats = useMemo(() => buildNewPipelineStats(leads || []), [leads]);
@@ -260,7 +264,7 @@ export default function StatsPage({
         </div>
         <div className="summary-card win">
           <span className="summary-value">{winCount}</span>
-          <span className="summary-label">Win</span>
+          <span className="summary-label">Won</span>
         </div>
         <div className="summary-card lost">
           <span className="summary-value">{lostCount}</span>
@@ -298,9 +302,9 @@ export default function StatsPage({
       <section className="stats-section">
         <div className="stats-section-head">
           <div>
-            <h2>New Pipeline – Analytics</h2>
+            <h2>Pipeline – Analytics</h2>
             <p className="stats-section-copy">
-              Rozkład czasowy zdarzeń w pipeline "New".
+              Rozkład czasowy zdarzeń w pipeline.
             </p>
           </div>
         </div>
@@ -318,7 +322,7 @@ export default function StatsPage({
           <div className="npa-card npa-contacted">
             <span className="npa-value">{newPipelineStats.contacted}</span>
             <span className="npa-label">Contacted</span>
-            <span className="npa-desc">Leadów z próbą kontaktu</span>
+            <span className="npa-desc">Zmiana stage (poza Qualified)</span>
           </div>
           <div className="npa-card npa-meeting">
             <span className="npa-value">{newPipelineStats.meetingBooked}</span>
@@ -453,7 +457,7 @@ export default function StatsPage({
           {stageStats.map(({ stage, label, count }) => (
             <div
               key={stage}
-              className={`stat-card${stage === 'win' ? ' win' : ''}${stage === 'lost' ? ' lost' : ''}`}
+              className={`stat-card${stage === 'won' || stage === 'win' ? ' win' : ''}${stage === 'lost' ? ' lost' : ''}`}
               style={{
                 '--stage-color': STAGE_MAP[stage]?.color || 'var(--accent)',
               }}

@@ -84,22 +84,12 @@ export const api = {
     request(`/api/leads/deleted/${deletedId}/restore`, { method: 'POST' }),
   deleteDeletedLead: (deletedId) =>
     request(`/api/leads/deleted/${deletedId}`, { method: 'DELETE' }),
-  deleteAllNotContacted: (pipeline = 'websites') =>
-    request(
-      `/api/leads/stage/not_contacted_yet?pipeline=${encodeURIComponent(pipeline)}`,
-      { method: 'DELETE' }
-    ),
-  removeDuplicatesNotContacted: (pipeline = 'websites') =>
-    request(
-      `/api/leads/stage/not_contacted_yet/dedupe?pipeline=${encodeURIComponent(pipeline)}`,
-      { method: 'POST' }
-    ),
-  deleteAllNotQualified: (pipeline = 'new') =>
+  deleteAllNotQualified: (pipeline = 'pipeline') =>
     request(
       `/api/leads/stage/not_qualified?pipeline=${encodeURIComponent(pipeline)}`,
       { method: 'DELETE' }
     ),
-  removeDuplicatesNotQualified: (pipeline = 'new') =>
+  removeDuplicatesNotQualified: (pipeline = 'pipeline') =>
     request(
       `/api/leads/stage/not_qualified/dedupe?pipeline=${encodeURIComponent(pipeline)}`,
       { method: 'POST' }

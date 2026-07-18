@@ -59,7 +59,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState([]);
-  const [tab, setTab] = useState('websites');
+  const [tab, setTab] = useState('pipeline');
   const [tasks, setTasks] = useState({ active: [], done: [] });
   const [deletedLeads, setDeletedLeads] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
@@ -81,7 +81,7 @@ export default function App() {
   }, [leads, allTasks]);
   
   const inboxCount = useMemo(
-    () => leads.filter((l) => (l.pipeline || 'websites') === 'inbox').length,
+    () => leads.filter((l) => (l.pipeline || 'pipeline') === 'inbox').length,
     [leads]
   );
   
@@ -225,17 +225,10 @@ export default function App() {
           </button>
           <button
             type="button"
-            className={`tab-btn${tab === 'websites' ? ' active' : ''}`}
-            onClick={() => setTab('websites')}
+            className={`tab-btn${tab === 'pipeline' ? ' active' : ''}`}
+            onClick={() => setTab('pipeline')}
           >
-            Websites
-          </button>
-          <button
-            type="button"
-            className={`tab-btn${tab === 'new' ? ' active' : ''}`}
-            onClick={() => setTab('new')}
-          >
-            New
+            Pipeline
           </button>
           <button
             type="button"
@@ -316,10 +309,10 @@ export default function App() {
             }}
           />
         )}
-        {(tab === 'websites' || tab === 'new') && (
+        {tab === 'pipeline' && (
           <div className="pipeline-wrap">
             <Pipeline
-              pipeline={tab}
+              pipeline="pipeline"
               leads={leadsWithMeta}
               tasks={tasks}
               onMoveStage={handleMoveStage}
@@ -333,23 +326,13 @@ export default function App() {
                 if (selectedLead?.id === id) setSelectedLead(null);
                 await refresh();
               }}
-              onDeleteAllNotContacted={async () => {
-                await api.deleteAllNotContacted(tab);
-                setSelectedLead(null);
-                await refresh();
-              }}
-              onRemoveDuplicatesNotContacted={async () => {
-                const result = await api.removeDuplicatesNotContacted(tab);
-                await refresh();
-                return result;
-              }}
               onDeleteAllNotQualified={async () => {
-                await api.deleteAllNotQualified(tab);
+                await api.deleteAllNotQualified('pipeline');
                 setSelectedLead(null);
                 await refresh();
               }}
               onRemoveDuplicatesNotQualified={async () => {
-                const result = await api.removeDuplicatesNotQualified(tab);
+                const result = await api.removeDuplicatesNotQualified('pipeline');
                 await refresh();
                 return result;
               }}
