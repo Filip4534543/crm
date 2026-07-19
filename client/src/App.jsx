@@ -343,6 +343,7 @@ export default function App() {
           <StatsPage
             stats={stats}
             leads={leadsWithMeta}
+            deletedLeads={deletedLeads}
             tasks={tasks}
             nextContactStats={nextContactStats}
           />

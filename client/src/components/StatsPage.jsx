@@ -176,6 +176,7 @@ ${metric.label}: ${point.item[metric.key] || 0}`}
 export default function StatsPage({
   stats,
   leads,
+  deletedLeads,
   nextContactStats,
 }) {
   const [rangeKey, setRangeKey] = useState('30');
@@ -197,7 +198,10 @@ export default function StatsPage({
     )
     .reduce((sum, lead) => sum + lead.earnings, 0);
   
-  const newPipelineStats = useMemo(() => buildNewPipelineStats(leads || []), [leads]);
+  const newPipelineStats = useMemo(
+    () => buildNewPipelineStats(leads || [], deletedLeads || []),
+    [leads, deletedLeads]
+  );
   
   const minDayKey = newPipelineStats?.minDayKey || customStart || customEnd;
   const maxDayKey = newPipelineStats?.maxDayKey || minDayKey;
@@ -312,7 +316,7 @@ export default function StatsPage({
           <div className="npa-card npa-analyzed">
             <span className="npa-value">{newPipelineStats.analyzed}</span>
             <span className="npa-label">Analyzed</span>
-            <span className="npa-desc">Leadów zakwalifikowanych (wyszły z Not Qualified)</span>
+            <span className="npa-desc">Wyszły z Not Qualified lub zostały stamtąd usunięte</span>
           </div>
           <div className="npa-card npa-qualified" style={{'--npa-color': '#34d399'}}>
             <span className="npa-value" style={{color: '#34d399'}}>{newPipelineStats.qualified}</span>
@@ -322,7 +326,7 @@ export default function StatsPage({
           <div className="npa-card npa-contacted">
             <span className="npa-value">{newPipelineStats.contacted}</span>
             <span className="npa-label">Contacted</span>
-            <span className="npa-desc">Zmiana stage (poza Qualified)</span>
+            <span className="npa-desc">Zmiana stage (poza Qualified i NQ→Lost)</span>
           </div>
           <div className="npa-card npa-meeting">
             <span className="npa-value">{newPipelineStats.meetingBooked}</span>

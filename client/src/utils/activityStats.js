@@ -4,7 +4,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const ACTIVITY_STATS_START = '2026-06-07';
 
 const MEETING_BOOKED_STAGES = new Set(['meeting_booked_new']);
-// "Analyzed" = moved OUT of not_qualified to any other stage
+// "Analyzed" = left not_qualified (move or delete)
 const ANALYZED_FROM = 'not_qualified';
 
 function pad(value) {
@@ -48,17 +48,21 @@ export function formatDayLabel(dayKey, options = {}) {
   return new Intl.DateTimeFormat('pl-PL', options).format(fromDayKey(dayKey));
 }
 
+function isPipelineLead(lead) {
+  const p = lead.pipeline || '';
+  return p === 'pipeline' || p === 'new';
+}
+
 /**
  * Pipeline analytics (analyzed, qualified, contacted, meetingBooked)
  * from leads with pipeline === 'pipeline' (also accepts legacy 'new').
  *
- * Contacted = any stage change except moves to "qualified".
+ * Analyzed = left not_qualified (stage move) OR deleted while in not_qualified.
+ * Contacted = any stage change except moves to "qualified" and
+ *             not_qualified → lost (discard without contact).
  */
-export function buildNewPipelineStats(leads = []) {
-  const pipelineLeads = leads.filter((l) => {
-    const p = l.pipeline || '';
-    return p === 'pipeline' || p === 'new';
-  });
+export function buildNewPipelineStats(leads = [], deletedLeads = []) {
+  const pipelineLeads = leads.filter(isPipelineLead);
 
   const analyzed = new Set();
   const qualified = new Set();
@@ -79,6 +83,11 @@ export function buildNewPipelineStats(leads = []) {
     return buckets.get(dayKey);
   }
 
+  function markAnalyzed(id, dayKey) {
+    analyzed.add(id);
+    getBucket(dayKey).analyzed.add(id);
+  }
+
   for (const lead of pipelineLeads) {
     for (const entry of lead.history || []) {
       const createdAt = parseStageTimestamp(entry.created_at);
@@ -88,14 +97,13 @@ export function buildNewPipelineStats(leads = []) {
 
       const bucket = getBucket(dayKey);
 
-      // Analyzed
+      // Analyzed: left not_qualified
       if (
         entry.from_stage === ANALYZED_FROM &&
         entry.to_stage &&
         entry.to_stage !== ANALYZED_FROM
       ) {
-        analyzed.add(lead.id);
-        bucket.analyzed.add(lead.id);
+        markAnalyzed(lead.id, dayKey);
       }
 
       // Qualified
@@ -105,12 +113,15 @@ export function buildNewPipelineStats(leads = []) {
       }
 
       // Contacted: every stage change except moves to qualified
-      // (ignore create / no-op events)
+      // and not_qualified → lost (analyzed discard, not a contact)
+      const isNqToLost =
+        entry.from_stage === ANALYZED_FROM && entry.to_stage === 'lost';
       if (
         entry.from_stage != null &&
         entry.to_stage &&
         entry.from_stage !== entry.to_stage &&
-        entry.to_stage !== 'qualified'
+        entry.to_stage !== 'qualified' &&
+        !isNqToLost
       ) {
         contacted.add(lead.id);
         bucket.contacted.add(lead.id);
@@ -122,6 +133,18 @@ export function buildNewPipelineStats(leads = []) {
         bucket.meetingBooked.add(lead.id);
       }
     }
+  }
+
+  // Deletion from not_qualified counts as analyzed
+  for (const lead of deletedLeads) {
+    if (!isPipelineLead(lead)) continue;
+    if (lead.stage !== ANALYZED_FROM) continue;
+    const deletedAt = parseStageTimestamp(lead.deleted_at);
+    if (!deletedAt) continue;
+    const dayKey = toDayKey(deletedAt);
+    if (dayKey < ACTIVITY_STATS_START) continue;
+    const id = `deleted:${lead.deleted_id ?? lead.id ?? lead.original_id}`;
+    markAnalyzed(id, dayKey);
   }
 
   const todayKey = toDayKey(new Date());
