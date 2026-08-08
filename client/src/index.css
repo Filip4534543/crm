@@ -1997,6 +1997,94 @@ a {
   }
 }
 
+.nft-page {
+  padding: 1.25rem 1.5rem;
+  overflow: auto;
+  height: 100%;
+}
+
+.nft-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.nft-header h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.35rem;
+}
+
+.nft-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  max-width: 42rem;
+}
+
+.nft-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.nft-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.nft-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  min-width: 880px;
+}
+
+.nft-table th,
+.nft-table td {
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.nft-table th {
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--surface2);
+}
+
+.nft-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.nft-row {
+  cursor: pointer;
+}
+
+.nft-row:hover td {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.nft-cell-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.nft-cell-clip {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nft-cell-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
 /* ── Lead Card Header & Actions ──────────────────────────────────────── */
 .lead-card-header {
   display: flex;

@@ -1,6 +1,7 @@
 const STAGES = [
   'not_qualified',
   'qualified',
+  'not_for_this_service',
   'attempt_1',
   'attempt_2',
   'attempt_3',
@@ -19,6 +20,7 @@ const STAGES = [
 const STAGE_LABELS = {
   not_qualified: 'Not Qualified',
   qualified: 'Qualified',
+  not_for_this_service: 'Not for this service',
   attempt_1: 'Attempt 1',
   attempt_2: 'Attempt 2',
   attempt_3: 'Attempt 3',

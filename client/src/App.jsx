@@ -7,6 +7,7 @@ import StatsPage from './components/StatsPage';
 import TasksPage from './components/TasksPage';
 import ApiPage from './components/ApiPage';
 import DeletedLeadsPage from './components/DeletedLeadsPage';
+import NotForThisServicePage from './components/NotForThisServicePage';
 import LeadDetailModal from './components/LeadDetailModal';
 import ManualLeadModal from './components/ManualLeadModal';
 
@@ -82,6 +83,11 @@ export default function App() {
   
   const inboxCount = useMemo(
     () => leads.filter((l) => (l.pipeline || 'pipeline') === 'inbox').length,
+    [leads]
+  );
+
+  const notForThisServiceCount = useMemo(
+    () => leads.filter((l) => l.stage === 'not_for_this_service').length,
     [leads]
   );
   
@@ -232,6 +238,16 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`tab-btn${tab === 'not_for_this_service' ? ' active' : ''}`}
+            onClick={() => setTab('not_for_this_service')}
+          >
+            Not for this service
+            {notForThisServiceCount > 0 && (
+              <span className="tab-badge">{notForThisServiceCount}</span>
+            )}
+          </button>
+          <button
+            type="button"
             className={`tab-btn${tab === 'stats' ? ' active' : ''}`}
             onClick={() => setTab('stats')}
           >
@@ -338,6 +354,17 @@ export default function App() {
               }}
             />
           </div>
+        )}
+        {tab === 'not_for_this_service' && (
+          <NotForThisServicePage
+            leads={leadsWithMeta}
+            onLeadClick={(lead) => setSelectedLead(lead)}
+            onDeleteLead={async (id) => {
+              await api.deleteLead(id);
+              if (selectedLead?.id === id) setSelectedLead(null);
+              await refresh();
+            }}
+          />
         )}
         {tab === 'stats' && (
           <StatsPage

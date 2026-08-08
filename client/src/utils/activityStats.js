@@ -112,8 +112,8 @@ export function buildNewPipelineStats(leads = [], deletedLeads = []) {
         bucket.qualified.add(lead.id);
       }
 
-      // Contacted: every stage change except moves to qualified
-      // and not_qualified → lost (analyzed discard, not a contact)
+      // Contacted: every stage change except moves to qualified /
+      // not_for_this_service and not_qualified → lost (discard, not a contact)
       const isNqToLost =
         entry.from_stage === ANALYZED_FROM && entry.to_stage === 'lost';
       if (
@@ -121,6 +121,7 @@ export function buildNewPipelineStats(leads = [], deletedLeads = []) {
         entry.to_stage &&
         entry.from_stage !== entry.to_stage &&
         entry.to_stage !== 'qualified' &&
+        entry.to_stage !== 'not_for_this_service' &&
         !isNqToLost
       ) {
         contacted.add(lead.id);
