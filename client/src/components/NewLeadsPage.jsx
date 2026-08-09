@@ -33,6 +33,7 @@ export default function NewLeadsPage({
   onAssignAllInbox,
   onLeadClick,
   onPurgeLead,
+  onPurgeAll,
 }) {
   const [busyId, setBusyId] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -88,6 +89,23 @@ export default function NewLeadsPage({
     }
   }
 
+  async function handlePurgeAll() {
+    const total = inboxLeads.length;
+    if (
+      !window.confirm(
+        `Usunąć wszystkie ${total} leadów z Nowych leadów?\nNie trafią do Usuniętych i nie będą blokować ponownego dodania z n8n.`
+      )
+    ) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      await onPurgeAll?.();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   const anyBusy = bulkBusy || busyId != null;
 
   return (
@@ -113,6 +131,14 @@ export default function NewLeadsPage({
                 onClick={() => handleAssignAll('pipeline')}
               >
                 → {PIPELINES.pipeline.label}
+              </button>
+              <button
+                type="button"
+                className="btn-ghost btn-danger-ghost"
+                disabled={anyBusy}
+                onClick={handlePurgeAll}
+              >
+                Usuń wszystkie
               </button>
             </div>
           )}

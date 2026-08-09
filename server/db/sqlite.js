@@ -425,6 +425,25 @@ function purgeInboxLead(id) {
   })(Number(id));
 }
 
+function purgeAllInboxLeads() {
+  const d = getDb();
+  const ids = d
+    .prepare("SELECT id FROM leads WHERE pipeline = 'inbox'")
+    .all()
+    .map((r) => r.id);
+  if (!ids.length) return { deleted: 0 };
+  const placeholders = ids.map(() => '?').join(', ');
+  const deleted = d.transaction((leadIds) => {
+    d.prepare(`DELETE FROM tasks WHERE lead_id IN (${placeholders})`).run(...leadIds);
+    d.prepare(`DELETE FROM stage_history WHERE lead_id IN (${placeholders})`).run(
+      ...leadIds
+    );
+    return d.prepare(`DELETE FROM leads WHERE id IN (${placeholders})`).run(...leadIds)
+      .changes;
+  })(ids);
+  return { deleted };
+}
+
 function updateLeadFields(id, fields) {
   const allowed = [
     'agreed_sum',
@@ -667,6 +686,7 @@ module.exports = {
   deleteTask: wrap(deleteTask),
   deleteLead: wrap(deleteLead),
   purgeInboxLead: wrap(purgeInboxLead),
+  purgeAllInboxLeads: wrap(purgeAllInboxLeads),
   deleteAllLeadsInStage: wrap(deleteAllLeadsInStage),
   deleteDuplicateLeadsInStage: wrap(deleteDuplicateLeadsInStage),
   restoreDeletedLead: wrap(restoreDeletedLead),

@@ -84,6 +84,8 @@ export const api = {
   deleteLead: (id) => request(`/api/leads/${id}`, { method: 'DELETE' }),
   purgeInboxLead: (id) =>
     request(`/api/leads/inbox/${id}`, { method: 'DELETE' }),
+  purgeAllInboxLeads: () =>
+    request('/api/leads/inbox', { method: 'DELETE' }),
   restoreDeletedLead: (deletedId) =>
     request(`/api/leads/deleted/${deletedId}/restore`, { method: 'POST' }),
   deleteDeletedLead: (deletedId) =>

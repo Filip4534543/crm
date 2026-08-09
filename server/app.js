@@ -191,6 +191,14 @@ app.post('/api/leads/inbox/assign-all', authMiddleware, async (req, res) => {
   }
 });
 
+app.delete('/api/leads/inbox', authMiddleware, async (req, res) => {
+  try {
+    res.json(await db.purgeAllInboxLeads());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.delete('/api/leads/inbox/:id(\\d+)', authMiddleware, async (req, res) => {
   try {
     const ok = await db.purgeInboxLead(Number(req.params.id));

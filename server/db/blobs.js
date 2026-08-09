@@ -406,6 +406,20 @@ async function purgeInboxLead(id) {
   return true;
 }
 
+async function purgeAllInboxLeads() {
+  const data = await loadData();
+  const ids = data.leads
+    .filter((l) => (l.pipeline || 'pipeline') === 'inbox')
+    .map((l) => l.id);
+  if (!ids.length) return { deleted: 0 };
+  const idSet = new Set(ids);
+  data.leads = data.leads.filter((l) => !idSet.has(l.id));
+  data.history = data.history.filter((h) => !idSet.has(h.lead_id));
+  data.tasks = data.tasks.filter((t) => !idSet.has(t.lead_id));
+  await saveData(data);
+  return { deleted: ids.length };
+}
+
 async function updateLeadFields(id, fields) {
   const data = await loadData();
   const lead = data.leads.find((l) => l.id === id);
@@ -652,6 +666,7 @@ module.exports = {
   deleteTask,
   deleteLead,
   purgeInboxLead,
+  purgeAllInboxLeads,
   deleteAllLeadsInStage,
   deleteDuplicateLeadsInStage,
   restoreDeletedLead,

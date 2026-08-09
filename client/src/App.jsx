@@ -323,6 +323,11 @@ export default function App() {
               if (selectedLead?.id === id) setSelectedLead(null);
               await refresh();
             }}
+            onPurgeAll={async () => {
+              await api.purgeAllInboxLeads();
+              setSelectedLead(null);
+              await refresh();
+            }}
           />
         )}
         {tab === 'pipeline' && (
