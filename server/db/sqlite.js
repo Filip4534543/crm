@@ -387,19 +387,42 @@ function assignLeadToPipeline(id, targetPipeline) {
   return getLeadById(id);
 }
 
-function assignAllInboxToPipeline(targetPipeline) {
+function assignAllInboxToPipeline(targetPipeline, options = {}) {
   if (!ASSIGNABLE_PIPELINES.includes(targetPipeline)) {
     throw new Error('Invalid pipeline');
   }
-  const ids = getDb()
-    .prepare("SELECT id FROM leads WHERE pipeline = 'inbox'")
+  let ids = getDb()
+    .prepare(
+      "SELECT id FROM leads WHERE pipeline = 'inbox' ORDER BY datetime(created_at) DESC, id DESC"
+    )
     .all()
     .map((r) => r.id);
+
+  const limit = Number(options.limit);
+  if (Number.isFinite(limit) && limit >= 0) {
+    ids = ids.slice(0, Math.floor(limit));
+  }
+
   let moved = 0;
   for (const id of ids) {
     if (assignLeadToPipeline(id, targetPipeline)) moved++;
   }
   return { moved, pipeline: targetPipeline };
+}
+
+/** Hard-delete inbox lead: no deleted_leads archive, so it won't block future duplicates. */
+function purgeInboxLead(id) {
+  const lead = getDb().prepare('SELECT * FROM leads WHERE id = ?').get(Number(id));
+  if (!lead) return false;
+  if (lead.pipeline !== 'inbox') {
+    throw new Error('Trwałe usunięcie bez archiwum dozwolone tylko z Nowych leadów');
+  }
+  const d = getDb();
+  return d.transaction((leadId) => {
+    d.prepare('DELETE FROM tasks WHERE lead_id = ?').run(leadId);
+    d.prepare('DELETE FROM stage_history WHERE lead_id = ?').run(leadId);
+    return d.prepare('DELETE FROM leads WHERE id = ?').run(leadId).changes > 0;
+  })(Number(id));
 }
 
 function updateLeadFields(id, fields) {
@@ -643,6 +666,7 @@ module.exports = {
   updateTask: wrap(updateTask),
   deleteTask: wrap(deleteTask),
   deleteLead: wrap(deleteLead),
+  purgeInboxLead: wrap(purgeInboxLead),
   deleteAllLeadsInStage: wrap(deleteAllLeadsInStage),
   deleteDuplicateLeadsInStage: wrap(deleteDuplicateLeadsInStage),
   restoreDeletedLead: wrap(restoreDeletedLead),

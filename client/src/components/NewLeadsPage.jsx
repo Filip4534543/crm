@@ -17,12 +17,22 @@ function formatDate(value) {
   });
 }
 
+function parseAssignCount(raw, total) {
+  const trimmed = String(raw ?? '').trim().toLowerCase();
+  if (!trimmed || trimmed === 'wszystkie' || trimmed === 'all') {
+    return total;
+  }
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 1) return null;
+  return Math.min(n, total);
+}
+
 export default function NewLeadsPage({
   leads,
   onAssignPipeline,
   onAssignAllInbox,
   onLeadClick,
-  onDeleteLead,
+  onPurgeLead,
 }) {
   const [busyId, setBusyId] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -46,16 +56,33 @@ export default function NewLeadsPage({
 
   async function handleAssignAll(pipeline) {
     const label = PIPELINES[pipeline]?.label || pipeline;
+    const total = inboxLeads.length;
+    const raw = window.prompt(
+      `Ile leadów przenieść do ${label}?\nDomyślnie wszystkie (${total}). Wpisz liczbę albo zostaw ${total}.`,
+      String(total)
+    );
+    if (raw === null) return;
+
+    const count = parseAssignCount(raw, total);
+    if (count == null) {
+      window.alert('Podaj dodatnią liczbę całkowitą albo zostaw domyślną wartość.');
+      return;
+    }
+
+    const movingAll = count >= total;
     if (
       !window.confirm(
-        `Przenieść wszystkie ${inboxLeads.length} leadów do pipeline ${label}?`
+        movingAll
+          ? `Przenieść wszystkie ${total} leadów do pipeline ${label}?`
+          : `Przenieść ${count} z ${total} leadów (najnowsze z listy) do pipeline ${label}?`
       )
     ) {
       return;
     }
+
     setBulkBusy(true);
     try {
-      await onAssignAllInbox?.(pipeline);
+      await onAssignAllInbox?.(pipeline, movingAll ? undefined : count);
     } finally {
       setBulkBusy(false);
     }
@@ -70,14 +97,15 @@ export default function NewLeadsPage({
           <h2>Nowe leady</h2>
           <p className="new-leads-sub">
             Leady z n8n trafiają tutaj. Przypisz je do Pipeline (startują w „Not
-            Qualified").
+            Qualified"). Usunięcie z tej listy nie trafia do Usuniętych — ten sam
+            lead może wrócić później z n8n.
           </p>
         </div>
         <div className="new-leads-header-side">
           <div className="badge new-leads-count">{inboxLeads.length} oczekujących</div>
           {inboxLeads.length > 0 && (
             <div className="new-leads-bulk">
-              <span className="new-leads-bulk-label">Wszystkie:</span>
+              <span className="new-leads-bulk-label">Przenieś:</span>
               <button
                 type="button"
                 className="btn-primary"
@@ -133,10 +161,10 @@ export default function NewLeadsPage({
                     onClick={() => {
                       if (
                         window.confirm(
-                          `Usunąć lead „${title}"? Trafia do zakładki Usunięte.`
+                          `Usunąć lead „${title}" z Nowych leadów?\nNie trafi do Usuniętych i nie będzie blokował ponownego dodania z n8n.`
                         )
                       ) {
-                        onDeleteLead?.(lead.id);
+                        onPurgeLead?.(lead.id);
                       }
                     }}
                   >

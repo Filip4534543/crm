@@ -347,17 +347,28 @@ async function assignLeadToPipeline(id, targetPipeline) {
   return getLeadById(id);
 }
 
-async function assignAllInboxToPipeline(targetPipeline) {
+async function assignAllInboxToPipeline(targetPipeline, options = {}) {
   if (!ASSIGNABLE_PIPELINES.includes(targetPipeline)) {
     throw new Error('Invalid pipeline');
   }
   const data = await loadData();
-  const ids = data.leads
+  let inboxLeads = data.leads
     .filter((l) => (l.pipeline || 'pipeline') === 'inbox')
-    .map((l) => l.id);
+    .slice()
+    .sort((a, b) => {
+      const ta = String(a.created_at || '');
+      const tb = String(b.created_at || '');
+      if (ta !== tb) return ta < tb ? 1 : -1;
+      return b.id - a.id;
+    });
+
+  const limit = Number(options.limit);
+  if (Number.isFinite(limit) && limit >= 0) {
+    inboxLeads = inboxLeads.slice(0, Math.floor(limit));
+  }
+
   let moved = 0;
-  for (const id of ids) {
-    const lead = data.leads.find((l) => l.id === id);
+  for (const lead of inboxLeads) {
     if (!lead || lead.pipeline !== 'inbox') continue;
     const fromStage = lead.stage;
     const label = PIPELINE_LABELS[targetPipeline] || targetPipeline;
@@ -367,7 +378,7 @@ async function assignAllInboxToPipeline(targetPipeline) {
     lead.updated_at = now();
     data.history.push({
       id: data.nextHistoryId++,
-      lead_id: id,
+      lead_id: lead.id,
       from_stage: fromStage,
       to_stage: entryStage,
       description: `Przeniesiono do pipeline ${label}`,
@@ -377,6 +388,22 @@ async function assignAllInboxToPipeline(targetPipeline) {
   }
   if (moved > 0) await saveData(data);
   return { moved, pipeline: targetPipeline };
+}
+
+/** Hard-delete inbox lead: no deleted_leads archive, so it won't block future duplicates. */
+async function purgeInboxLead(id) {
+  const data = await loadData();
+  const leadId = Number(id);
+  const lead = data.leads.find((l) => l.id === leadId);
+  if (!lead) return false;
+  if (lead.pipeline !== 'inbox') {
+    throw new Error('Trwałe usunięcie bez archiwum dozwolone tylko z Nowych leadów');
+  }
+  data.leads = data.leads.filter((l) => l.id !== leadId);
+  data.history = data.history.filter((h) => h.lead_id !== leadId);
+  data.tasks = data.tasks.filter((t) => t.lead_id !== leadId);
+  await saveData(data);
+  return true;
 }
 
 async function updateLeadFields(id, fields) {
@@ -624,6 +651,7 @@ module.exports = {
   updateTask,
   deleteTask,
   deleteLead,
+  purgeInboxLead,
   deleteAllLeadsInStage,
   deleteDuplicateLeadsInStage,
   restoreDeletedLead,

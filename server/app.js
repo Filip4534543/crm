@@ -175,9 +175,27 @@ app.patch('/api/leads/:id(\\d+)/pipeline', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/leads/inbox/assign-all', authMiddleware, async (req, res) => {
-  const { pipeline } = req.body;
+  const { pipeline, limit } = req.body || {};
   try {
-    res.json(await db.assignAllInboxToPipeline(pipeline));
+    const options = {};
+    if (limit !== undefined && limit !== null && limit !== '') {
+      const n = Number(limit);
+      if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+        return res.status(400).json({ error: 'limit musi być nieujemną liczbą całkowitą' });
+      }
+      options.limit = n;
+    }
+    res.json(await db.assignAllInboxToPipeline(pipeline, options));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/leads/inbox/:id(\\d+)', authMiddleware, async (req, res) => {
+  try {
+    const ok = await db.purgeInboxLead(Number(req.params.id));
+    if (!ok) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

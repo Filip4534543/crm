@@ -69,10 +69,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ pipeline }),
     }),
-  assignAllInboxPipeline: (pipeline) =>
+  assignAllInboxPipeline: (pipeline, limit) =>
     request('/api/leads/inbox/assign-all', {
       method: 'POST',
-      body: JSON.stringify({ pipeline }),
+      body: JSON.stringify(
+        limit == null ? { pipeline } : { pipeline, limit }
+      ),
     }),
   updateLead: (id, body) =>
     request(`/api/leads/${id}`, {
@@ -80,6 +82,8 @@ export const api = {
       body: JSON.stringify(body),
     }),
   deleteLead: (id) => request(`/api/leads/${id}`, { method: 'DELETE' }),
+  purgeInboxLead: (id) =>
+    request(`/api/leads/inbox/${id}`, { method: 'DELETE' }),
   restoreDeletedLead: (deletedId) =>
     request(`/api/leads/deleted/${deletedId}/restore`, { method: 'POST' }),
   deleteDeletedLead: (deletedId) =>

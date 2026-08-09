@@ -189,8 +189,8 @@ export default function App() {
     if (selectedLead?.id === id) setSelectedLead(null);
   }
 
-  async function handleAssignAllInbox(pipeline) {
-    await api.assignAllInboxPipeline(pipeline);
+  async function handleAssignAllInbox(pipeline, limit) {
+    await api.assignAllInboxPipeline(pipeline, limit);
     await refresh();
     setSelectedLead(null);
   }
@@ -318,8 +318,8 @@ export default function App() {
             onAssignPipeline={handleAssignPipeline}
             onAssignAllInbox={handleAssignAllInbox}
             onLeadClick={(lead) => setSelectedLead(lead)}
-            onDeleteLead={async (id) => {
-              await api.deleteLead(id);
+            onPurgeLead={async (id) => {
+              await api.purgeInboxLead(id);
               if (selectedLead?.id === id) setSelectedLead(null);
               await refresh();
             }}
