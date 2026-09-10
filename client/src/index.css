@@ -108,7 +108,7 @@ a {
   background-clip: text;
 }
 
-.login-card p {
+.login-card > p {
   color: var(--muted);
   font-size: 0.875rem;
   margin-bottom: 1.5rem;
@@ -147,6 +147,42 @@ a {
   color: #f87171;
   font-size: 0.875rem;
   margin-bottom: 0.75rem;
+}
+
+.install-app {
+  position: relative;
+}
+
+.install-app-login {
+  margin-top: 0.85rem;
+}
+
+.install-app-login .install-app-btn {
+  width: 100%;
+  padding: 0.7rem;
+}
+
+.install-app-hint {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  width: min(280px, 70vw);
+  padding: 0.7rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.install-app-login .install-app-hint {
+  right: auto;
+  left: 0;
+  width: 100%;
 }
 
 /* App shell */

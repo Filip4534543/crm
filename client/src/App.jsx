@@ -10,6 +10,7 @@ import DeletedLeadsPage from './components/DeletedLeadsPage';
 import NotForThisServicePage from './components/NotForThisServicePage';
 import LeadDetailModal from './components/LeadDetailModal';
 import ManualLeadModal from './components/ManualLeadModal';
+import InstallAppButton from './components/InstallAppButton';
 
 const THEME_KEY = 'filips-crm-theme';
 
@@ -276,6 +277,7 @@ export default function App() {
           </button>
         </nav>
         <div className="header-actions">
+          <InstallAppButton />
           <button
             type="button"
             className="btn-primary"

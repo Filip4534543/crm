@@ -18,6 +18,17 @@
   included_files = ["server/**"]
   external_node_modules = ["better-sqlite3", "@netlify/blobs"]
 
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Service-Worker-Allowed = "/"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api"

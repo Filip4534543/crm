@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, setToken } from '../api';
+import InstallAppButton from './InstallAppButton';
 
 export default function Login({ onSuccess }) {
   const [password, setPassword] = useState('');
@@ -46,6 +47,7 @@ export default function Login({ onSuccess }) {
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Logowanie…' : 'Zaloguj'}
         </button>
+        <InstallAppButton variant="login" />
       </form>
     </div>
   );
