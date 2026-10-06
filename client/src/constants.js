@@ -1,7 +1,8 @@
 // Stages for the main pipeline board
 export const PIPELINE_STAGES = [
   { id: 'not_qualified', label: 'Not Qualified', color: '#64748b' },
-  { id: 'qualified', label: 'Qualified', color: '#6366f1' },
+  { id: 'qualified', label: 'Qualified - Website', color: '#6366f1' },
+  { id: 'qualified_seo', label: 'Qualified SEO', color: '#0ea5e9' },
   { id: 'not_for_this_service', label: 'Not for this service', color: '#94a3b8' },
   { id: 'attempt_1', label: 'Attempt 1', color: '#7c3aed' },
   { id: 'attempt_2', label: 'Attempt 2', color: '#8b5cf6' },

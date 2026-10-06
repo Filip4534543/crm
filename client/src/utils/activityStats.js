@@ -4,6 +4,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const ACTIVITY_STATS_START = '2026-06-07';
 
 const MEETING_BOOKED_STAGES = new Set(['meeting_booked_new']);
+// Moves onto either qualified stage count as Qualified and are not contacts.
+const QUALIFIED_STAGES = new Set(['qualified', 'qualified_seo']);
 // "Analyzed" = left not_qualified (move or delete)
 const ANALYZED_FROM = 'not_qualified';
 
@@ -58,8 +60,9 @@ function isPipelineLead(lead) {
  * from leads with pipeline === 'pipeline' (also accepts legacy 'new').
  *
  * Analyzed = left not_qualified (stage move) OR deleted while in not_qualified.
- * Contacted = any stage change except moves to "qualified" and
- *             not_qualified → lost (discard without contact).
+ * Contacted = any stage change except moves to a qualified stage
+ *             (Qualified - Website / Qualified SEO), not_for_this_service,
+ *             and not_qualified → lost (discard without contact).
  */
 export function buildNewPipelineStats(leads = [], deletedLeads = []) {
   const pipelineLeads = leads.filter(isPipelineLead);
@@ -106,13 +109,13 @@ export function buildNewPipelineStats(leads = [], deletedLeads = []) {
         markAnalyzed(lead.id, dayKey);
       }
 
-      // Qualified
-      if (entry.to_stage === 'qualified') {
+      // Qualified: Qualified - Website or Qualified SEO
+      if (QUALIFIED_STAGES.has(entry.to_stage)) {
         qualified.add(lead.id);
         bucket.qualified.add(lead.id);
       }
 
-      // Contacted: every stage change except moves to qualified /
+      // Contacted: every stage change except moves to a qualified stage /
       // not_for_this_service and not_qualified → lost (discard, not a contact)
       const isNqToLost =
         entry.from_stage === ANALYZED_FROM && entry.to_stage === 'lost';
@@ -120,7 +123,7 @@ export function buildNewPipelineStats(leads = [], deletedLeads = []) {
         entry.from_stage != null &&
         entry.to_stage &&
         entry.from_stage !== entry.to_stage &&
-        entry.to_stage !== 'qualified' &&
+        !QUALIFIED_STAGES.has(entry.to_stage) &&
         entry.to_stage !== 'not_for_this_service' &&
         !isNqToLost
       ) {

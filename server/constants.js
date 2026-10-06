@@ -1,6 +1,7 @@
 const STAGES = [
   'not_qualified',
   'qualified',
+  'qualified_seo',
   'not_for_this_service',
   'attempt_1',
   'attempt_2',
@@ -19,7 +20,8 @@ const STAGES = [
 
 const STAGE_LABELS = {
   not_qualified: 'Not Qualified',
-  qualified: 'Qualified',
+  qualified: 'Qualified - Website',
+  qualified_seo: 'Qualified SEO',
   not_for_this_service: 'Not for this service',
   attempt_1: 'Attempt 1',
   attempt_2: 'Attempt 2',

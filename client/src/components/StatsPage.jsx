@@ -321,12 +321,12 @@ export default function StatsPage({
           <div className="npa-card npa-qualified" style={{'--npa-color': '#34d399'}}>
             <span className="npa-value" style={{color: '#34d399'}}>{newPipelineStats.qualified}</span>
             <span className="npa-label">Qualified</span>
-            <span className="npa-desc">Trafiły na stage Qualified</span>
+            <span className="npa-desc">Trafiły na Qualified - Website lub Qualified SEO</span>
           </div>
           <div className="npa-card npa-contacted">
             <span className="npa-value">{newPipelineStats.contacted}</span>
             <span className="npa-label">Contacted</span>
-            <span className="npa-desc">Zmiana stage (poza Qualified i NQ→Lost)</span>
+            <span className="npa-desc">Zmiana stage (poza Qualified Website/SEO i NQ→Lost)</span>
           </div>
           <div className="npa-card npa-meeting">
             <span className="npa-value">{newPipelineStats.meetingBooked}</span>
